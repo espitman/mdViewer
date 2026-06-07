@@ -20,7 +20,7 @@ struct ContentView: View {
 
     private let fonts = ["Vazirmatn-Regular", "Helvetica Neue", "Avenir Next", "SF Pro"]
     private let importableTypes: [UTType] = [.mdFile, .plainText, .text]
-    private let droppableTypes = [UTType.fileURL.identifier]
+    private let droppableTypes = [UTType.fileURL.identifier, UTType.url.identifier, UTType.text.identifier]
 
     init(initialFileURL: URL? = nil) {
         if let initialFileURL,
@@ -357,12 +357,11 @@ struct ContentView: View {
         VStack(spacing: 0) {
             panelHeader(title: "Preview", icon: "doc.richtext", detail: displayFontName(effectiveFontName))
                 .background(AppColor.paper)
-            ScrollView {
-                MarkdownPreview(markdown: markdown, fontName: effectiveFontName, fontSize: fontSize, accentColor: accentColor)
-                    .frame(maxWidth: 780, alignment: .topLeading)
-                    .frame(maxWidth: .infinity, alignment: .top)
+            MarkdownPreview(markdown: markdown, fontName: effectiveFontName, fontSize: fontSize, accentColor: accentColor) { url in
+                loadDroppedMarkdown(from: url)
             }
-            .background(AppColor.paper)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(AppColor.paper)
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
@@ -566,16 +565,23 @@ struct ContentView: View {
         folderName = url.deletingLastPathComponent().lastPathComponent
     }
 
+    private func loadDroppedMarkdown(from url: URL) {
+        loadMarkdown(from: url)
+        viewMode = .preview
+    }
+
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else {
+        guard let provider = providers.first(where: { provider in
+            droppableTypes.contains { provider.hasItemConformingToTypeIdentifier($0) }
+        }) else {
             return false
         }
 
-        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+        let type = droppableTypes.first { provider.hasItemConformingToTypeIdentifier($0) } ?? UTType.fileURL.identifier
+        provider.loadItem(forTypeIdentifier: type, options: nil) { item, _ in
             guard let url = DropURLDecoder.fileURL(from: item) else { return }
             DispatchQueue.main.async {
-                loadMarkdown(from: url)
-                viewMode = .preview
+                loadDroppedMarkdown(from: url)
             }
         }
 
@@ -588,7 +594,13 @@ struct ContentView: View {
         panel.nameFieldStringValue = fileName.replacingOccurrences(of: ".md", with: ".html")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            try HTMLExporter.html(for: markdown, title: fileName, accent: NSColor(accentColor).hexString)
+            try MarkdownHTMLRenderer.html(
+                for: markdown,
+                title: fileName,
+                fontName: effectiveFontName,
+                fontSize: fontSize,
+                accent: NSColor(accentColor).hexString
+            )
                 .write(to: url, atomically: true, encoding: .utf8)
             exportMessage = "Exported \(url.lastPathComponent)"
         } catch {
@@ -618,121 +630,6 @@ private enum ViewMode: String, CaseIterable, Identifiable {
         case .code: "curlybraces"
         case .preview: "doc.richtext"
         }
-    }
-}
-
-enum HTMLExporter {
-    static func html(for markdown: String, title: String, accent: String) -> String {
-        let body = MarkdownBlock.parse(markdown).map { block -> String in
-            switch block {
-            case .image(let alt):
-                return "<h1 class=\"logo\">\(escape(alt.uppercased()))</h1><div class=\"rule\"></div>"
-            case .heading(let level, let text):
-                return "<h\(min(level, 6))>\(escape(text))</h\(min(level, 6))>"
-            case .paragraph(let text):
-                return "<p>\(inlineHTML(text))</p>"
-            case .bullets(let items):
-                return listHTML(items)
-            case .table(let table):
-                return tableHTML(table)
-            case .mermaid(let source):
-                return "<pre class=\"mermaid\">\(escape(source))</pre>"
-            case .code(let text):
-                return "<pre><code>\(escape(text))</code></pre>"
-            }
-        }.joined(separator: "\n")
-
-        return """
-        <!doctype html>
-        <html lang="en">
-        <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>\(escape(title))</title>
-        <style>
-        body{font:16px/1.55 Vazirmatn,-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;color:#141d2b;margin:56px auto;max-width:960px;padding:0 24px}
-        h1{font-size:34px;line-height:1.15}h2{font-size:24px;margin-top:34px}.logo{letter-spacing:.02em}.rule{width:240px;height:6px;background:\(accent);margin-top:-12px;margin-bottom:34px}pre{background:#f1f1f1;padding:12px 16px;overflow:auto}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}table{border-collapse:collapse;width:100%;display:block;overflow:auto}th,td{border:1px solid #ddd;padding:10px 12px;text-align:left;vertical-align:top}th{background:#eee}.mermaid{background:#f4f4f4}
-        </style>
-        </head>
-        <body>
-        \(body)
-        </body>
-        </html>
-        """
-    }
-
-    private static func escape(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-    }
-
-    private static func inlineHTML(_ text: String) -> String {
-        var escaped = escape(text)
-        escaped = escaped.replacing(#/\*\*([^*]+)\*\*/#, with: "<strong>$1</strong>")
-        escaped = escaped.replacing(#/\*([^*]+)\*/#, with: "<em>$1</em>")
-        escaped = escaped.replacing(#/`([^`]+)`/#, with: "<code>$1</code>")
-        return escaped
-    }
-
-    private static func checkboxHTML(_ state: CheckboxState?) -> String {
-        guard let state else { return "" }
-        let mark = state == .checked ? "✓" : ""
-        return "<span style=\"display:inline-flex;width:14px;height:14px;margin-right:8px;align-items:center;justify-content:center;background:#e6e6e6;border:1px solid #cfcfcf;border-radius:3px;font-size:11px;font-weight:700;vertical-align:-2px\">\(mark)</span>"
-    }
-
-    private static func listHTML(_ items: [MarkdownListItem]) -> String {
-        guard !items.isEmpty else { return "" }
-        var html = ""
-        var currentLevel = 0
-
-        html += "<ul>"
-        for item in items {
-            while currentLevel < item.level {
-                html += "<ul>"
-                currentLevel += 1
-            }
-
-            while currentLevel > item.level {
-                html += "</ul>"
-                currentLevel -= 1
-            }
-
-            html += "<li>\(orderedMarkerHTML(item.marker))\(checkboxHTML(item.checkbox))\(inlineHTML(item.text))</li>"
-        }
-
-        while currentLevel > 0 {
-            html += "</ul>"
-            currentLevel -= 1
-        }
-
-        html += "</ul>"
-        return html
-    }
-
-    private static func tableHTML(_ table: MarkdownTable) -> String {
-        let headers = table.headers.map { "<th>\(inlineHTML($0))</th>" }.joined()
-        let rows = table.rows.map { row in
-            let cells = (0..<table.columnCount).map { index in
-                "<td>\(inlineHTML(index < row.count ? row[index] : ""))</td>"
-            }.joined()
-            return "<tr>\(cells)</tr>"
-        }.joined()
-        return "<table><thead><tr>\(headers)</tr></thead><tbody>\(rows)</tbody></table>"
-    }
-
-    private static func orderedMarkerHTML(_ marker: ListMarker) -> String {
-        guard case .ordered(let number) = marker else { return "" }
-        return "<span style=\"display:inline-block;min-width:28px;font-weight:700\">\(number).</span>"
-    }
-}
-
-private extension NSColor {
-    var hexString: String {
-        guard let color = usingColorSpace(.deviceRGB) else { return "#109ecc" }
-        return String(format: "#%02X%02X%02X", Int(color.redComponent * 255), Int(color.greenComponent * 255), Int(color.blueComponent * 255))
     }
 }
 

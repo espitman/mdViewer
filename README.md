@@ -1,6 +1,6 @@
 # MD Viewer
 
-A native macOS Markdown viewer built with Swift and SwiftUI.
+A native macOS Markdown viewer built with Swift, SwiftUI, and WKWebView.
 
 MD Viewer is focused on opening local `.md` files quickly, rendering them in a clean reading view, and keeping Persian/RTL documents readable. It also includes source view tools for quick inspection and find/replace.
 
@@ -22,6 +22,8 @@ MD Viewer is focused on opening local `.md` files quickly, rendering them in a c
   - images
 - Task list rendering for `[ ]` and `[x]`.
 - Mermaid diagram rendering with zoom, pan, and fullscreen view.
+- Markdown rendering powered by bundled `markdown-it`.
+- Syntax highlighting powered by bundled `highlight.js`.
 - Find and replace in the source view.
 - Export rendered content as HTML.
 - DMG packaging script for installing the app on macOS.
@@ -84,7 +86,14 @@ ditto "dist/MD Viewer.app" "/Applications/MD Viewer.app"
 
 ## Markdown Notes
 
-MD Viewer currently uses a native SwiftUI renderer with custom handling for Persian/RTL text, task lists, tables, code blocks, and Mermaid diagrams.
+MD Viewer renders Markdown through a bundled WKWebView stack:
+
+- `markdown-it` for GitHub-style Markdown parsing
+- `highlight.js` for syntax highlighting
+- `mermaid.js` for diagrams
+- bundled Vazirmatn font and app CSS for Persian/RTL text
+
+This keeps the preview and exported HTML on the same rendering path.
 
 Mermaid blocks are supported with fenced code:
 
@@ -115,9 +124,12 @@ Sources/mdViewer/
   Resources/
     AppIcon.icns
     Fonts/Vazirmatn-Regular.ttf
+    highlight-github.min.css
+    highlight.min.js
+    markdown-it.min.js
     mermaid.min.js
 ```
 
 ## License
 
-Private project.
+MIT License. See [LICENSE](LICENSE).
