@@ -4,8 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="MD Viewer"
 EXECUTABLE_NAME="mdViewer"
+VERSION="${1:-1}"
 APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
-DMG_PATH="$ROOT_DIR/dist/$APP_NAME.dmg"
+DMG_PATH="$ROOT_DIR/dist/MD_Viewer_v$VERSION.dmg"
 VOLUME_NAME="MD Viewer"
 BUILD_DIR="$(swift build -c release --package-path "$ROOT_DIR" --show-bin-path)"
 
@@ -46,9 +47,9 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>$VERSION</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$VERSION</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>NSHighResolutionCapable</key>

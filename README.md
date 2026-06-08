@@ -69,14 +69,14 @@ swift build -c release
 ## Create a DMG
 
 ```bash
-./package-dmg.sh
+./package-dmg.sh 1
 ```
 
 The generated app and installer will be placed in:
 
 ```text
 dist/MD Viewer.app
-dist/MD Viewer.dmg
+dist/MD_Viewer_v1.dmg
 ```
 
 To install manually, drag `MD Viewer.app` into `/Applications`, or copy it with:
@@ -135,3 +135,8 @@ Sources/mdViewer/
 ## License
 
 MIT License. See [LICENSE](LICENSE).
+
+## Links
+
+- Website: https://espitman.github.io/mdViewer/
+- Releases: https://github.com/espitman/mdViewer/releases

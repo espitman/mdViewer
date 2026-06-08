@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MD Viewer | نمایشگر Markdown برای macOS</title>
+    <meta
+      name="description"
+      content="MD Viewer یک اپ macOS برای خواندن فایل‌های Markdown، نمایش Mermaid، پشتیبانی از فارسی و RTL، تب‌های چندگانه و خروجی HTML است."
+    />
+    <meta name="theme-color" content="#0f1720" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0f1720;
+        --panel: #151f2b;
+        --panel-2: #101821;
+        --line: rgba(255, 255, 255, 0.12);
+        --text: #f6f8fb;
+        --muted: rgba(246, 248, 251, 0.68);
+        --accent: #34b7df;
+        --accent-strong: #72d8f4;
+        --shadow: 0 24px 72px rgba(0, 0, 0, 0.34);
+        --content: 1120px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--bg);
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Vazirmatn", system-ui, sans-serif;
+        color: var(--text);
+        background:
+          linear-gradient(180deg, rgba(52, 183, 223, 0.12), transparent 34%),
+          linear-gradient(135deg, #0f1720 0%, #111b26 45%, #0d131b 100%);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .container {
+        width: min(var(--content), calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+        padding: 24px 0;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand img {
+        width: 54px;
+        height: 54px;
+        border-radius: 14px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 800;
+      }
+
+      .brand p {
+        margin: 3px 0 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .nav a,
+      .button.secondary {
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.04);
+        color: rgba(246, 248, 251, 0.82);
+      }
+
+      .nav a {
+        padding: 10px 14px;
+        border-radius: 999px;
+        font-weight: 600;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+        gap: 26px;
+        align-items: stretch;
+        padding: 22px 0 48px;
+      }
+
+      .hero-copy,
+      .preview,
+      .card {
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, rgba(21, 31, 43, 0.94), rgba(13, 19, 27, 0.96));
+        box-shadow: var(--shadow);
+      }
+
+      .hero-copy {
+        border-radius: 28px;
+        padding: 38px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 20px;
+        padding: 8px 13px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.04);
+        font-weight: 700;
+      }
+
+      .hero h2 {
+        margin: 0 0 18px;
+        max-width: 12ch;
+        font-size: clamp(2.1rem, 5vw, 4.2rem);
+        line-height: 1.18;
+        font-weight: 800;
+      }
+
+      .hero p {
+        margin: 0;
+        max-width: 62ch;
+        color: rgba(246, 248, 251, 0.76);
+        font-size: 1.08rem;
+        line-height: 2;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 30px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 52px;
+        padding: 0 20px;
+        border-radius: 14px;
+        font-weight: 800;
+      }
+
+      .button.primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        color: #081018;
+      }
+
+      .preview {
+        border-radius: 28px;
+        overflow: hidden;
+      }
+
+      .window {
+        min-height: 420px;
+        background: #f8fafc;
+        color: #172033;
+      }
+
+      .window-bar {
+        height: 54px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 18px;
+        border-bottom: 1px solid #e1e6ee;
+        background: #ffffff;
+        font-weight: 800;
+      }
+
+      .window-body {
+        padding: 30px;
+        direction: rtl;
+        text-align: right;
+      }
+
+      .window-body h3 {
+        margin: 0 0 14px;
+        font-size: 1.7rem;
+      }
+
+      .window-body p {
+        margin: 0 0 18px;
+        color: #3f4857;
+        line-height: 1.9;
+      }
+
+      pre {
+        direction: ltr;
+        text-align: left;
+        overflow: auto;
+        margin: 0;
+        padding: 18px;
+        border-radius: 10px;
+        background: #eef2f6;
+        color: #243041;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      .section {
+        padding: 26px 0;
+      }
+
+      .section h2 {
+        margin: 0 0 18px;
+        font-size: 2rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+
+      .card {
+        border-radius: 18px;
+        padding: 22px;
+      }
+
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 1.08rem;
+      }
+
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      footer {
+        padding: 40px 0 48px;
+        color: var(--muted);
+      }
+
+      @media (max-width: 860px) {
+        .topbar,
+        .hero {
+          grid-template-columns: 1fr;
+        }
+
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-copy {
+          padding: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="container topbar">
+      <a class="brand" href="#">
+        <img src="./assets/icon.png" alt="MD Viewer icon" />
+        <span>
+          <h1>MD Viewer</h1>
+          <p>نمایشگر Markdown برای macOS</p>
+        </span>
+      </a>
+      <nav class="nav" aria-label="پیوندها">
+        <a href="https://github.com/espitman/mdViewer">GitHub</a>
+        <a href="#features">امکانات</a>
+        <a href="#download">دانلود</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="container hero">
+        <div class="hero-copy">
+          <div class="eyebrow">نسخه ۱ برای macOS 14+</div>
+          <h2>Markdown را تمیز، سریع و فارسی‌پسند بخوان.</h2>
+          <p>
+            MD Viewer فایل‌های Markdown را با پشتیبانی از تب‌های چندگانه، Mermaid، جدول،
+            کدهای رنگی، انتخاب متن، RTL فارسی و خروجی HTML نمایش می‌دهد.
+          </p>
+          <div class="actions" id="download">
+            <a class="button primary" href="https://github.com/espitman/mdViewer/releases/download/v1/MD_Viewer_v1.dmg">
+              دانلود DMG
+            </a>
+            <a class="button secondary" href="https://github.com/espitman/mdViewer/releases/tag/v1">
+              مشاهده Release
+            </a>
+          </div>
+        </div>
+
+        <div class="preview" aria-label="پیش‌نمایش اپ">
+          <div class="window">
+            <div class="window-bar">
+              <span>Preview</span>
+              <span>Reload</span>
+            </div>
+            <div class="window-body">
+              <h3>خلاصه</h3>
+              <p>
+                این اپ برای خواندن سندهای فنی Markdown ساخته شده؛ مخصوصاً وقتی متن فارسی،
+                کد، جدول و دیاگرام کنار هم هستند.
+              </p>
+              <pre><code>```mermaid
+flowchart TD
+  A["باز کردن فایل"] --> B["Preview"]
+```</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="container section" id="features">
+        <h2>امکانات</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>تب‌های چندگانه</h3>
+            <p>چند فایل را هم‌زمان باز کن، بین آن‌ها جابه‌جا شو و هر تب را جدا reload کن.</p>
+          </article>
+          <article class="card">
+            <h3>Markdown کامل‌تر</h3>
+            <p>رندر با markdown-it، جدول‌ها، task list، code block و HTML table را بهتر نمایش می‌دهد.</p>
+          </article>
+          <article class="card">
+            <h3>Mermaid و کد</h3>
+            <p>دیاگرام‌های Mermaid با zoom، pan و fullscreen و کدها با highlight.js رندر می‌شوند.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="container">
+      <span>MIT License · MD Viewer v1</span>
+    </footer>
+  </body>
+</html>
