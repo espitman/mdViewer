@@ -254,18 +254,6 @@ struct ContentView: View {
                 .frame(maxWidth: 170, alignment: .leading)
 
             Button {
-                reloadDocument(document)
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 10, weight: .black))
-                    .foregroundStyle(isSelected ? .white.opacity(0.78) : AppColor.mutedInk)
-                    .frame(width: 20, height: 20)
-            }
-            .buttonStyle(.plain)
-            .disabled(document.url == nil)
-            .help("Reload file")
-
-            Button {
                 closeDocument(document)
             } label: {
                 Image(systemName: "xmark")
@@ -380,7 +368,11 @@ struct ContentView: View {
 
     private var editorPanel: some View {
         VStack(spacing: 0) {
-            panelHeader(title: "Code", icon: "curlybraces", detail: "Markdown source")
+            panelHeader(title: "Code", icon: "curlybraces") {
+                Text("Markdown source")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+            }
             findReplaceBar
             MarkdownEditor(text: activeMarkdownBinding, selectionRequest: $editorSelectionRequest)
         }
@@ -481,7 +473,30 @@ struct ContentView: View {
 
     private var previewPanel: some View {
         VStack(spacing: 0) {
-            panelHeader(title: "Preview", icon: "doc.richtext", detail: displayFontName(effectiveFontName))
+            panelHeader(title: "Preview", icon: "doc.richtext") {
+                Button {
+                    reloadActiveDocument()
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .black))
+                        Text("Reload")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundStyle(AppColor.ink)
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+                    .background(Color.black.opacity(0.045))
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(AppColor.hairline, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(activeDocument?.url == nil)
+                .help("Reload file")
+            }
                 .background(AppColor.paper)
             MarkdownPreview(markdown: activeDocument?.markdown ?? "", fontName: effectiveFontName, fontSize: fontSize, accentColor: accentColor) { urls in
                 loadDroppedMarkdown(from: urls)
@@ -497,16 +512,14 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func panelHeader(title: String, icon: String, detail: String) -> some View {
+    private func panelHeader<Trailing: View>(title: String, icon: String, @ViewBuilder trailing: () -> Trailing) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .bold))
             Text(title)
                 .font(.system(size: 14, weight: .bold))
             Spacer()
-            Text(detail)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(AppColor.mutedInk)
+            trailing()
         }
         .foregroundStyle(title == "Code" ? .white.opacity(0.92) : AppColor.ink)
         .padding(.horizontal, 18)
@@ -672,6 +685,11 @@ struct ContentView: View {
         guard let content = try? String(contentsOf: url, encoding: .utf8) else { return }
         documents[index].markdown = content
         selectDocument(document.id)
+    }
+
+    private func reloadActiveDocument() {
+        guard let activeDocument else { return }
+        reloadDocument(activeDocument)
     }
 
     private func selectNextMatch() {
