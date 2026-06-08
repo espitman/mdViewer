@@ -498,9 +498,20 @@ struct ContentView: View {
                 .help("Reload file")
             }
                 .background(AppColor.paper)
-            MarkdownPreview(markdown: activeDocument?.markdown ?? "", fontName: effectiveFontName, fontSize: fontSize, accentColor: accentColor) { urls in
-                loadDroppedMarkdown(from: urls)
-            }
+            MarkdownPreview(
+                documentID: activeDocument?.id,
+                markdown: activeDocument?.markdown ?? "",
+                fontName: effectiveFontName,
+                fontSize: fontSize,
+                accentColor: accentColor,
+                scrollY: activeDocument?.scrollY ?? 0,
+                onFileDrop: { urls in
+                    loadDroppedMarkdown(from: urls)
+                },
+                onScrollChange: { scrollY in
+                    setActiveScrollY(scrollY)
+                }
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(AppColor.paper)
         }
@@ -644,6 +655,11 @@ struct ContentView: View {
     private func setActiveMarkdown(_ value: String) {
         guard let activeDocumentIndex else { return }
         documents[activeDocumentIndex].markdown = value
+    }
+
+    private func setActiveScrollY(_ value: Double) {
+        guard let activeDocumentIndex else { return }
+        documents[activeDocumentIndex].scrollY = value
     }
 
     private func selectDocument(_ id: MarkdownDocument.ID) {
@@ -865,6 +881,7 @@ private struct MarkdownDocument: Identifiable, Equatable {
     var fileName: String
     var folderName: String
     var markdown: String
+    var scrollY: Double
 
     init(id: UUID = UUID(), url: URL?, markdown: String) {
         self.id = id
@@ -872,6 +889,7 @@ private struct MarkdownDocument: Identifiable, Equatable {
         self.fileName = url?.lastPathComponent ?? "README.md"
         self.folderName = url?.deletingLastPathComponent().lastPathComponent ?? "introToMarkdown"
         self.markdown = markdown
+        self.scrollY = 0
     }
 
     static let sample = MarkdownDocument(url: nil, markdown: sampleMarkdown)

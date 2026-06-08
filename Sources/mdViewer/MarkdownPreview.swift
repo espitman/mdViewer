@@ -4,17 +4,26 @@ import SwiftUI
 import WebKit
 
 struct MarkdownPreview: NSViewRepresentable {
+    let documentID: UUID?
     let markdown: String
     let fontName: String
     let fontSize: Double
     let accentColor: Color
+    let scrollY: Double
     var onFileDrop: ([URL]) -> Void = { _ in }
+    var onScrollChange: (Double) -> Void = { _ in }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onScrollChange: onScrollChange)
+    }
 
     func makeNSView(context: Context) -> DroppableMarkdownWebView {
         let configuration = WKWebViewConfiguration()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+        configuration.userContentController.add(context.coordinator, name: "scroll")
 
         let webView = DroppableMarkdownWebView(frame: .zero, configuration: configuration)
+        webView.renderFingerprint = renderFingerprint
         webView.onFileDrop = onFileDrop
         webView.setValue(false, forKey: "drawsBackground")
         webView.allowsMagnification = true
@@ -23,7 +32,10 @@ struct MarkdownPreview: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: DroppableMarkdownWebView, context: Context) {
+        context.coordinator.onScrollChange = onScrollChange
         webView.onFileDrop = onFileDrop
+        guard webView.renderFingerprint != renderFingerprint else { return }
+        webView.renderFingerprint = renderFingerprint
         webView.loadHTMLString(html, baseURL: Bundle.module.resourceURL)
     }
 
@@ -33,12 +45,42 @@ struct MarkdownPreview: NSViewRepresentable {
             title: "Preview",
             fontName: fontName,
             fontSize: fontSize,
-            accent: NSColor(accentColor).hexString
+            accent: NSColor(accentColor).hexString,
+            initialScrollY: scrollY
         )
+    }
+
+    private var renderFingerprint: String {
+        [
+            documentID?.uuidString ?? "empty",
+            markdown,
+            fontName,
+            "\(fontSize)",
+            NSColor(accentColor).hexString
+        ].joined(separator: "\u{1F}")
+    }
+
+    final class Coordinator: NSObject, WKScriptMessageHandler {
+        var onScrollChange: (Double) -> Void
+
+        init(onScrollChange: @escaping (Double) -> Void) {
+            self.onScrollChange = onScrollChange
+        }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "scroll" else { return }
+
+            if let value = message.body as? Double {
+                onScrollChange(value)
+            } else if let value = message.body as? NSNumber {
+                onScrollChange(value.doubleValue)
+            }
+        }
     }
 }
 
 final class DroppableMarkdownWebView: WKWebView {
+    var renderFingerprint: String?
     var onFileDrop: ([URL]) -> Void = { _ in }
 
     override init(frame frameRect: NSRect, configuration: WKWebViewConfiguration) {
@@ -104,7 +146,8 @@ enum MarkdownHTMLRenderer {
         title: String,
         fontName: String = "Vazirmatn-Regular",
         fontSize: Double = 16,
-        accent: String = "#109ECC"
+        accent: String = "#109ECC",
+        initialScrollY: Double = 0
     ) -> String {
         let markdownItScript = ResourceLoader.string("markdown-it.min", "js")
         let highlightScript = ResourceLoader.string("highlight.min", "js")
@@ -480,6 +523,7 @@ enum MarkdownHTMLRenderer {
           <script>\(mermaidScript)</script>
           <script>
             const markdownSource = \(source);
+            const initialScrollY = \(max(0, initialScrollY));
             const rtlPattern = /[\\u0590-\\u05FF\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF]/;
 
             function escapeHtml(value) {
@@ -647,6 +691,31 @@ enum MarkdownHTMLRenderer {
               });
             }
 
+            function scrollElement() {
+              return document.scrollingElement || document.documentElement || document.body;
+            }
+
+            function restoreScroll() {
+              const element = scrollElement();
+              const maxScroll = Math.max(0, element.scrollHeight - window.innerHeight);
+              element.scrollTop = Math.min(initialScrollY, maxScroll);
+            }
+
+            let scrollTicking = false;
+            function reportScroll() {
+              if (scrollTicking) return;
+              scrollTicking = true;
+              requestAnimationFrame(() => {
+                scrollTicking = false;
+                const y = scrollElement().scrollTop || 0;
+                try {
+                  window.webkit?.messageHandlers?.scroll?.postMessage(y);
+                } catch (_) {}
+              });
+            }
+
+            window.addEventListener('scroll', reportScroll, { passive: true });
+
             async function render() {
               const root = document.getElementById('content');
               try {
@@ -677,6 +746,13 @@ enum MarkdownHTMLRenderer {
                 }
 
                 root.querySelectorAll('.diagram-shell').forEach(wireDiagramControls);
+                requestAnimationFrame(() => {
+                  restoreScroll();
+                  requestAnimationFrame(() => {
+                    restoreScroll();
+                    reportScroll();
+                  });
+                });
               } catch (error) {
                 root.innerHTML = `<div class="render-error">${escapeHtml(error?.message || error)}</div>`;
               }
