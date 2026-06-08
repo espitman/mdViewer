@@ -6,27 +6,28 @@
     <title>MD Viewer | نمایشگر Markdown برای macOS</title>
     <meta
       name="description"
-      content="MD Viewer یک اپ macOS برای خواندن فایل‌های Markdown، نمایش Mermaid، پشتیبانی از فارسی و RTL، تب‌های چندگانه و خروجی HTML است."
+      content="MD Viewer یک اپ macOS برای خواندن فایل‌های Markdown با تب‌های چندگانه، Mermaid، RTL فارسی، syntax highlighting و خروجی HTML است."
     />
-    <meta name="theme-color" content="#0f1720" />
+    <meta name="theme-color" content="#f7fafb" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&amp;display=swap"
+      href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&amp;display=swap"
       rel="stylesheet"
     />
     <style>
       :root {
-        --bg: #0f1720;
-        --panel: #151f2b;
-        --panel-2: #101821;
-        --line: rgba(255, 255, 255, 0.12);
-        --text: #f6f8fb;
-        --muted: rgba(246, 248, 251, 0.68);
-        --accent: #34b7df;
-        --accent-strong: #72d8f4;
-        --shadow: 0 24px 72px rgba(0, 0, 0, 0.34);
-        --content: 1120px;
+        --bg: #f7fafb;
+        --paper: #ffffff;
+        --ink: #111827;
+        --muted: #667085;
+        --soft: #e8f2f5;
+        --line: #dbe5e8;
+        --accent: #088492;
+        --accent-2: #14a7bc;
+        --editor: #2b3048;
+        --code: #f1f4f6;
+        --content: 1160px;
       }
 
       * {
@@ -42,10 +43,12 @@
         margin: 0;
         min-height: 100vh;
         font-family: "Vazirmatn", system-ui, sans-serif;
-        color: var(--text);
+        color: var(--ink);
         background:
-          linear-gradient(180deg, rgba(52, 183, 223, 0.12), transparent 34%),
-          linear-gradient(135deg, #0f1720 0%, #111b26 45%, #0d131b 100%);
+          linear-gradient(90deg, rgba(8, 132, 146, 0.06) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(8, 132, 146, 0.05) 1px, transparent 1px),
+          var(--bg);
+        background-size: 42px 42px;
       }
 
       a {
@@ -59,234 +62,565 @@
       }
 
       .topbar {
+        height: 78px;
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        justify-content: space-between;
         gap: 20px;
-        padding: 24px 0;
+        animation: fadeDown 650ms ease both;
       }
 
       .brand {
         display: flex;
         align-items: center;
-        gap: 14px;
+        gap: 12px;
+        font-weight: 900;
       }
 
       .brand img {
-        width: 54px;
-        height: 54px;
-        border-radius: 14px;
-        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
-      }
-
-      .brand h1 {
-        margin: 0;
-        font-size: 1.35rem;
-        font-weight: 800;
-      }
-
-      .brand p {
-        margin: 3px 0 0;
-        color: var(--muted);
-        font-size: 0.95rem;
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
       }
 
       .nav {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
         flex-wrap: wrap;
       }
 
-      .nav a,
-      .button.secondary {
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.04);
-        color: rgba(246, 248, 251, 0.82);
-      }
-
       .nav a {
-        padding: 10px 14px;
-        border-radius: 999px;
-        font-weight: 600;
-      }
-
-      .hero {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
-        gap: 26px;
-        align-items: stretch;
-        padding: 22px 0 48px;
-      }
-
-      .hero-copy,
-      .preview,
-      .card {
-        border: 1px solid var(--line);
-        background: linear-gradient(180deg, rgba(21, 31, 43, 0.94), rgba(13, 19, 27, 0.96));
-        box-shadow: var(--shadow);
-      }
-
-      .hero-copy {
-        border-radius: 28px;
-        padding: 38px;
-      }
-
-      .eyebrow {
+        min-height: 38px;
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 20px;
-        padding: 8px 13px;
-        border-radius: 999px;
+        padding: 0 13px;
         border: 1px solid var(--line);
-        color: var(--muted);
-        background: rgba(255, 255, 255, 0.04);
-        font-weight: 700;
-      }
-
-      .hero h2 {
-        margin: 0 0 18px;
-        max-width: 12ch;
-        font-size: clamp(2.1rem, 5vw, 4.2rem);
-        line-height: 1.18;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        color: #334155;
+        font-size: 0.9rem;
         font-weight: 800;
       }
 
-      .hero p {
+      .hero {
+        min-height: calc(100vh - 78px);
+        display: grid;
+        grid-template-columns: minmax(0, 0.86fr) minmax(380px, 1.14fr);
+        gap: 44px;
+        align-items: center;
+        padding: 28px 0 70px;
+      }
+
+      .hero-copy {
+        max-width: 620px;
+        animation: riseIn 760ms 80ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      }
+
+      .kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 20px;
+        color: var(--accent);
+        font-weight: 900;
+      }
+
+      .kicker::before {
+        content: "";
+        width: 34px;
+        height: 3px;
+        border-radius: 999px;
+        background: var(--accent);
+      }
+
+      h1 {
         margin: 0;
-        max-width: 62ch;
-        color: rgba(246, 248, 251, 0.76);
-        font-size: 1.08rem;
-        line-height: 2;
+        font-size: clamp(2.55rem, 5.2vw, 4.65rem);
+        line-height: 1.12;
+        letter-spacing: 0;
+        font-weight: 900;
+      }
+
+      .hero-copy p {
+        margin: 24px 0 0;
+        max-width: 54ch;
+        color: #475569;
+        font-size: 1.12rem;
+        line-height: 2.05;
+        font-weight: 600;
       }
 
       .actions {
         display: flex;
+        align-items: center;
         flex-wrap: wrap;
         gap: 12px;
-        margin-top: 30px;
+        margin-top: 32px;
       }
 
       .button {
+        min-height: 50px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 52px;
         padding: 0 20px;
-        border-radius: 14px;
-        font-weight: 800;
+        border-radius: 12px;
+        font-weight: 900;
+        border: 1px solid transparent;
+        transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+      }
+
+      .button:hover {
+        transform: translateY(-2px);
       }
 
       .button.primary {
-        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-        color: #081018;
+        background: var(--ink);
+        color: white;
       }
 
-      .preview {
-        border-radius: 28px;
+      .button.secondary {
+        background: var(--paper);
+        border-color: var(--line);
+        color: var(--ink);
+      }
+
+      .version-note {
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 0.92rem;
+        font-weight: 700;
+      }
+
+      .reader-scene {
+        direction: ltr;
+        position: relative;
+        min-height: 640px;
+      }
+
+      .sheet {
+        position: absolute;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 24px 60px rgba(17, 24, 39, 0.12);
         overflow: hidden;
+        animation: sheetIn 760ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
       }
 
-      .window {
-        min-height: 420px;
-        background: #f8fafc;
-        color: #172033;
+      .sheet.main {
+        inset: 24px 0 76px 52px;
+        animation-delay: 140ms;
       }
 
-      .window-bar {
-        height: 54px;
+      .sheet.code {
+        width: 48%;
+        left: 0;
+        bottom: 26px;
+        background: var(--editor);
+        color: white;
+        transform: rotate(-2deg);
+        animation-delay: 260ms;
+      }
+
+      .sheet.mermaid {
+        width: 42%;
+        right: 18px;
+        bottom: 0;
+        transform: rotate(2deg);
+        animation-delay: 360ms;
+      }
+
+      .bar {
+        height: 46px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0 18px;
-        border-bottom: 1px solid #e1e6ee;
-        background: #ffffff;
-        font-weight: 800;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--line);
+        font-weight: 900;
       }
 
-      .window-body {
-        padding: 30px;
+      .bar.dark {
+        background: #202539;
+        border-color: rgba(255, 255, 255, 0.08);
+      }
+
+      .dots {
+        display: flex;
+        gap: 7px;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+
+      .red { background: #ff625d; }
+      .yellow { background: #f5bf4f; }
+      .green { background: #39c46a; }
+
+      .tabs {
+        display: flex;
+        gap: 8px;
+        padding: 10px 14px;
+        background: #f6fafb;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .tab {
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: white;
+        color: #475569;
+        font-size: 0.78rem;
+        font-weight: 900;
+      }
+
+      .tab.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: white;
+      }
+
+      .doc {
         direction: rtl;
         text-align: right;
+        padding: 34px 38px 44px;
       }
 
-      .window-body h3 {
-        margin: 0 0 14px;
-        font-size: 1.7rem;
+      .doc h2 {
+        margin: 0 0 16px;
+        font-size: 2.3rem;
+        line-height: 1.28;
+        font-weight: 900;
       }
 
-      .window-body p {
-        margin: 0 0 18px;
-        color: #3f4857;
-        line-height: 1.9;
+      .rule {
+        width: 210px;
+        height: 5px;
+        border-radius: 999px;
+        background: var(--accent-2);
+        margin: 0 0 24px auto;
       }
 
-      pre {
-        direction: ltr;
-        text-align: left;
-        overflow: auto;
-        margin: 0;
-        padding: 18px;
-        border-radius: 10px;
-        background: #eef2f6;
-        color: #243041;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      .doc p {
+        margin: 0 0 20px;
+        color: #475569;
+        line-height: 2;
+        font-weight: 600;
       }
 
-      .section {
-        padding: 26px 0;
-      }
-
-      .section h2 {
-        margin: 0 0 18px;
-        font-size: 2rem;
-      }
-
-      .grid {
+      .table {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 16px;
+        grid-template-columns: 1fr 1.2fr;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+        color: #334155;
+        font-size: 0.9rem;
       }
 
-      .card {
-        border-radius: 18px;
+      .cell {
+        padding: 12px;
+        border-bottom: 1px solid var(--line);
+        background: #fbfdfe;
+      }
+
+      .cell:nth-child(2n) {
+        border-right: 1px solid var(--line);
+      }
+
+      .cell.head {
+        background: #eef6f8;
+        font-weight: 900;
+      }
+
+      .code pre {
+        margin: 0;
         padding: 22px;
+        overflow: auto;
+        color: rgba(255, 255, 255, 0.9);
+        font: 700 0.88rem/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
       }
 
-      .card h3 {
-        margin: 0 0 8px;
+      .mermaid-body {
+        min-height: 210px;
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        background: #fbfdfe;
+      }
+
+      .flow {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 32px 1fr;
+        align-items: center;
+        gap: 10px;
+        color: #334155;
+        font-weight: 900;
+      }
+
+      .node {
+        min-height: 58px;
+        display: grid;
+        place-items: center;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: white;
+        text-align: center;
+      }
+
+      .arrow {
+        color: var(--accent);
+        text-align: center;
+        font-size: 1.6rem;
+      }
+
+      .features-band {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.54);
+      }
+
+      .features {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+        border-right: 1px solid var(--line);
+      }
+
+      .feature {
+        min-height: 190px;
+        padding: 28px 24px;
+        border-left: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.66);
+        backdrop-filter: blur(8px);
+        transition:
+          opacity 700ms ease,
+          transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1),
+          background 180ms ease;
+      }
+
+      .feature:hover {
+        transform: translateY(-3px);
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      .feature strong {
+        display: block;
+        margin-bottom: 10px;
         font-size: 1.08rem;
+        font-weight: 900;
       }
 
-      .card p {
+      .feature p {
         margin: 0;
         color: var(--muted);
-        line-height: 1.8;
+        line-height: 1.85;
+        font-weight: 600;
+      }
+
+      .reveal {
+        opacity: 0;
+        transform: translateY(28px);
+      }
+
+      .reveal.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .feature:nth-child(2) {
+        transition-delay: 90ms;
+      }
+
+      .feature:nth-child(3) {
+        transition-delay: 180ms;
+      }
+
+      .feature:nth-child(4) {
+        transition-delay: 270ms;
+      }
+
+      .particles {
+        position: absolute;
+        inset: -30px 0;
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      .particles span {
+        position: absolute;
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(8, 132, 146, 0.22);
+        box-shadow: 0 0 22px rgba(20, 167, 188, 0.22);
+        animation: particleFloat 10s ease-in-out infinite;
+      }
+
+      .particles span:nth-child(1) { top: 18%; right: 8%; animation-delay: -1s; }
+      .particles span:nth-child(2) { top: 60%; right: 19%; width: 5px; height: 5px; animation-delay: -5s; }
+      .particles span:nth-child(3) { top: 32%; right: 35%; animation-delay: -2.4s; }
+      .particles span:nth-child(4) { top: 74%; right: 48%; width: 9px; height: 9px; animation-delay: -7s; }
+      .particles span:nth-child(5) { top: 20%; right: 64%; width: 5px; height: 5px; animation-delay: -3.6s; }
+      .particles span:nth-child(6) { top: 56%; right: 78%; animation-delay: -8.2s; }
+      .particles span:nth-child(7) { top: 42%; right: 91%; width: 6px; height: 6px; animation-delay: -4.5s; }
+      .particles span:nth-child(8) { top: 83%; right: 28%; width: 4px; height: 4px; animation-delay: -6.1s; }
+
+      .download-strip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 54px 0;
+      }
+
+      .download-strip h2 {
+        margin: 0;
+        font-size: clamp(1.8rem, 3.5vw, 3rem);
+        line-height: 1.25;
+      }
+
+      .download-strip p {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-weight: 700;
       }
 
       footer {
-        padding: 40px 0 48px;
+        padding: 30px 0 44px;
         color: var(--muted);
+        border-top: 1px solid var(--line);
+        font-weight: 700;
       }
 
-      @media (max-width: 860px) {
-        .topbar,
+      @keyframes fadeDown {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes riseIn {
+        from {
+          opacity: 0;
+          transform: translateY(22px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes sheetIn {
+        from {
+          opacity: 0;
+          translate: 0 28px;
+          scale: 0.97;
+        }
+        to {
+          opacity: 1;
+          translate: 0 0;
+          scale: 1;
+        }
+      }
+
+      @keyframes particleFloat {
+        0%,
+        100% {
+          transform: translate3d(0, 0, 0);
+          opacity: 0.28;
+        }
+        45% {
+          transform: translate3d(-18px, -22px, 0);
+          opacity: 0.76;
+        }
+        70% {
+          transform: translate3d(14px, 18px, 0);
+          opacity: 0.46;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 1ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 1ms !important;
+          scroll-behavior: auto !important;
+        }
+      }
+
+      @media (max-width: 980px) {
         .hero {
           grid-template-columns: 1fr;
+          min-height: auto;
         }
 
-        .topbar {
+        .reader-scene {
+          min-height: 560px;
+        }
+
+        .features {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .download-strip {
           align-items: flex-start;
           flex-direction: column;
         }
+      }
 
-        .grid {
-          grid-template-columns: 1fr;
+      @media (max-width: 680px) {
+        .container {
+          width: min(100% - 28px, var(--content));
         }
 
-        .hero-copy {
-          padding: 28px;
+        .topbar {
+          height: auto;
+          align-items: flex-start;
+          flex-direction: column;
+          padding: 18px 0;
+        }
+
+        h1 {
+          font-size: 2.45rem;
+        }
+
+        .reader-scene {
+          min-height: auto;
+          display: grid;
+          gap: 14px;
+        }
+
+        .sheet,
+        .sheet.main,
+        .sheet.code,
+        .sheet.mermaid {
+          position: static;
+          width: auto;
+          transform: none;
+        }
+
+        .features {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -295,79 +629,160 @@
     <header class="container topbar">
       <a class="brand" href="#">
         <img src="./assets/icon.png" alt="MD Viewer icon" />
-        <span>
-          <h1>MD Viewer</h1>
-          <p>نمایشگر Markdown برای macOS</p>
-        </span>
+        <span>MD Viewer</span>
       </a>
       <nav class="nav" aria-label="پیوندها">
-        <a href="https://github.com/espitman/mdViewer">GitHub</a>
         <a href="#features">امکانات</a>
-        <a href="#download">دانلود</a>
+        <a href="https://github.com/espitman/mdViewer/releases/tag/v1">Release v1</a>
+        <a href="https://github.com/espitman/mdViewer">GitHub</a>
       </nav>
     </header>
 
     <main>
       <section class="container hero">
         <div class="hero-copy">
-          <div class="eyebrow">نسخه ۱ برای macOS 14+</div>
-          <h2>Markdown را تمیز، سریع و فارسی‌پسند بخوان.</h2>
+          <div class="kicker">Markdown reader for macOS</div>
+          <h1>سندهای فنی را بدون بهم‌ریختگی بخوان.</h1>
           <p>
-            MD Viewer فایل‌های Markdown را با پشتیبانی از تب‌های چندگانه، Mermaid، جدول،
-            کدهای رنگی، انتخاب متن، RTL فارسی و خروجی HTML نمایش می‌دهد.
+            MD Viewer برای Markdownهای واقعی ساخته شده: متن فارسی و انگلیسی، جدول،
+            Mermaid، کد، چند فایل همزمان و reload از دیسک؛ بدون بهم‌ریختن سند.
           </p>
-          <div class="actions" id="download">
+          <div class="actions">
             <a class="button primary" href="https://github.com/espitman/mdViewer/releases/download/v1/MD_Viewer_v1.dmg">
-              دانلود DMG
+              دانلود نسخه ۱
             </a>
-            <a class="button secondary" href="https://github.com/espitman/mdViewer/releases/tag/v1">
-              مشاهده Release
+            <a class="button secondary" href="https://github.com/espitman/mdViewer">
+              سورس پروژه
             </a>
           </div>
+          <div class="version-note">macOS 14+ · MIT License · DMG مستقیم از GitHub Releases</div>
         </div>
 
-        <div class="preview" aria-label="پیش‌نمایش اپ">
-          <div class="window">
-            <div class="window-bar">
+        <div class="reader-scene" aria-label="پیش‌نمایش MD Viewer">
+          <section class="sheet main">
+            <div class="bar">
               <span>Preview</span>
               <span>Reload</span>
             </div>
-            <div class="window-body">
-              <h3>خلاصه</h3>
-              <p>
-                این اپ برای خواندن سندهای فنی Markdown ساخته شده؛ مخصوصاً وقتی متن فارسی،
-                کد، جدول و دیاگرام کنار هم هستند.
-              </p>
-              <pre><code>```mermaid
-flowchart TD
-  A["باز کردن فایل"] --> B["Preview"]
-```</code></pre>
+            <div class="tabs">
+              <span class="tab">README.md</span>
+              <span class="tab active">access-model.md</span>
+              <span class="tab">diagram.md</span>
             </div>
-          </div>
+            <div class="doc">
+              <h2>Access Model</h2>
+              <div class="rule"></div>
+              <p>
+                جدول‌ها، لیست‌ها و متن‌های فارسی راست‌چین در همان document flow خوانا
+                می‌مانند؛ حتی وقتی کنار مسیر فایل و کد انگلیسی قرار می‌گیرند.
+              </p>
+              <div class="table">
+                <div class="cell head">Rule</div>
+                <div class="cell head">Meaning</div>
+                <div class="cell">superuser</div>
+                <div class="cell">Bypasses permission checks</div>
+                <div class="cell">Sidebar</div>
+                <div class="cell">Service prefix visibility</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="sheet code">
+            <div class="bar dark">
+              <div class="dots">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+              </div>
+              <span>Markdown source</span>
+            </div>
+            <pre><code>- [x] Add multi-tab viewer
+- [x] Preserve scroll position
+- [x] Render Mermaid
+- [ ] Publish docs page</code></pre>
+          </section>
+
+          <section class="sheet mermaid">
+            <div class="bar">
+              <span>Mermaid</span>
+              <span>1:1</span>
+            </div>
+            <div class="mermaid-body">
+              <div class="flow">
+                <div class="node">Open file</div>
+                <div class="arrow">→</div>
+                <div class="node">Preview tab</div>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
 
-      <section class="container section" id="features">
-        <h2>امکانات</h2>
-        <div class="grid">
-          <article class="card">
-            <h3>تب‌های چندگانه</h3>
-            <p>چند فایل را هم‌زمان باز کن، بین آن‌ها جابه‌جا شو و هر تب را جدا reload کن.</p>
+      <section class="features-band" id="features">
+        <div class="particles" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <div class="container features">
+          <article class="feature reveal">
+            <strong>چند فایل، چند تب</strong>
+            <p>چند Markdown را همزمان باز کن؛ هر فایل جای خودش و scroll خودش را دارد.</p>
           </article>
-          <article class="card">
-            <h3>Markdown کامل‌تر</h3>
-            <p>رندر با markdown-it، جدول‌ها، task list، code block و HTML table را بهتر نمایش می‌دهد.</p>
+          <article class="feature reveal">
+            <strong>RTL فارسی</strong>
+            <p>متن فارسی راست‌چین و خوانا، با فونت Vazirmatn و layout مناسب سند.</p>
           </article>
-          <article class="card">
-            <h3>Mermaid و کد</h3>
-            <p>دیاگرام‌های Mermaid با zoom، pan و fullscreen و کدها با highlight.js رندر می‌شوند.</p>
+          <article class="feature reveal">
+            <strong>Mermaid و کد</strong>
+            <p>دیاگرام‌ها با zoom/pan و کدها با highlight.js نمایش داده می‌شوند.</p>
+          </article>
+          <article class="feature reveal">
+            <strong>Reload از دیسک</strong>
+            <p>وقتی فایل بیرون از اپ تغییر کرد، با یک reload همان تب به‌روز می‌شود.</p>
           </article>
         </div>
+      </section>
+
+      <section class="container download-strip">
+        <div>
+          <h2>نسخه ۱ آماده دانلود است.</h2>
+          <p>یک DMG سبک برای نصب مستقیم روی macOS.</p>
+        </div>
+        <a class="button primary" href="https://github.com/espitman/mdViewer/releases/download/v1/MD_Viewer_v1.dmg">
+          دانلود MD_Viewer_v1.dmg
+        </a>
       </section>
     </main>
 
     <footer class="container">
-      <span>MIT License · MD Viewer v1</span>
+      <span>MIT License · MD Viewer v1 · <a href="https://github.com/espitman/mdViewer/releases/tag/v1">Release notes</a></span>
     </footer>
+    <script>
+      const revealItems = document.querySelectorAll(".reveal");
+
+      if ("IntersectionObserver" in window) {
+        const revealObserver = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("is-visible");
+                revealObserver.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.22 }
+        );
+
+        revealItems.forEach((item) => revealObserver.observe(item));
+      } else {
+        revealItems.forEach((item) => item.classList.add("is-visible"));
+      }
+    </script>
   </body>
 </html>
