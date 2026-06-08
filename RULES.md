@@ -14,8 +14,10 @@
 Use Conventional Commits format:
 
 ```text
-<type>(optional-scope): <short summary>
+<type>: <short summary>
 ```
+
+Do not use scoped commit messages. Avoid formats like `feat(tabs): ...` or `fix(preview): ...`.
 
 Allowed types:
 
@@ -33,8 +35,8 @@ Examples:
 
 ```text
 docs: add project rules
-fix(preview): render RTL paragraphs correctly
-feat(mermaid): add fullscreen diagram viewer
+fix: render RTL paragraphs correctly
+feat: add fullscreen diagram viewer
 build: package app as DMG
 ```
 
