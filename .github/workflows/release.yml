@@ -39,7 +39,7 @@ jobs:
         run: |
           TAG_NAME="${GITHUB_REF_NAME}"
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" dist/* --clobber
+            gh release upload "$TAG_NAME" dist/*.dmg dist/SHA256SUMS.txt --clobber
           else
-            gh release create "$TAG_NAME" dist/* --title "$TAG_NAME" --generate-notes
+            gh release create "$TAG_NAME" dist/*.dmg dist/SHA256SUMS.txt --title "$TAG_NAME" --generate-notes
           fi
