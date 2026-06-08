@@ -8,7 +8,7 @@ struct MarkdownPreview: NSViewRepresentable {
     let fontName: String
     let fontSize: Double
     let accentColor: Color
-    var onFileDrop: (URL) -> Void = { _ in }
+    var onFileDrop: ([URL]) -> Void = { _ in }
 
     func makeNSView(context: Context) -> DroppableMarkdownWebView {
         let configuration = WKWebViewConfiguration()
@@ -39,7 +39,7 @@ struct MarkdownPreview: NSViewRepresentable {
 }
 
 final class DroppableMarkdownWebView: WKWebView {
-    var onFileDrop: (URL) -> Void = { _ in }
+    var onFileDrop: ([URL]) -> Void = { _ in }
 
     override init(frame frameRect: NSRect, configuration: WKWebViewConfiguration) {
         super.init(frame: frameRect, configuration: configuration)
@@ -52,44 +52,49 @@ final class DroppableMarkdownWebView: WKWebView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        fileURL(from: sender.draggingPasteboard) == nil ? [] : .copy
+        fileURLs(from: sender.draggingPasteboard).isEmpty ? [] : .copy
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        fileURL(from: sender.draggingPasteboard) == nil ? [] : .copy
+        fileURLs(from: sender.draggingPasteboard).isEmpty ? [] : .copy
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let url = fileURL(from: sender.draggingPasteboard) else { return false }
-        onFileDrop(url)
+        let urls = fileURLs(from: sender.draggingPasteboard)
+        guard !urls.isEmpty else { return false }
+        onFileDrop(urls)
         return true
     }
 
-    private func fileURL(from pasteboard: NSPasteboard) -> URL? {
+    private func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
-           let url = urls.first {
-            return url
+           !urls.isEmpty {
+            return urls
         }
 
         if let value = pasteboard.string(forType: .fileURL),
            let url = URL(string: value) {
-            return url
+            return [url]
         }
 
         if let value = pasteboard.string(forType: .URL),
            let url = URL(string: value),
            url.isFileURL {
-            return url
+            return [url]
         }
 
         if let value = pasteboard.string(forType: .string) {
             if let url = URL(string: value), url.isFileURL {
-                return url
+                return [url]
             }
-            return URL(fileURLWithPath: value)
+            let paths = value
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            return paths.map { URL(fileURLWithPath: $0) }
         }
 
-        return nil
+        return []
     }
 }
 
@@ -372,13 +377,16 @@ enum MarkdownHTMLRenderer {
             }
 
             .diagram-toolbar button {
-              width: 32px;
+              min-width: 32px;
               height: 30px;
+              padding: 0 9px;
               border: 1px solid rgba(20, 29, 43, .12);
               border-radius: 7px;
               background: rgba(255, 255, 255, .92);
               color: var(--ink);
               font: 800 13px var(--reader-font);
+              line-height: 1;
+              white-space: nowrap;
               cursor: pointer;
             }
 

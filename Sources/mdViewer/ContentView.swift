@@ -3,9 +3,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @State private var markdown = sampleMarkdown
-    @State private var fileName = "README.md"
-    @State private var folderName = "introToMarkdown"
+    @State private var documents: [MarkdownDocument]
+    @State private var selectedDocumentID: MarkdownDocument.ID?
     @State private var fontName = "Vazirmatn-Regular"
     @State private var fontSize = 16.0
     @State private var accentColor = AppColor.accent
@@ -25,9 +24,12 @@ struct ContentView: View {
     init(initialFileURL: URL? = nil) {
         if let initialFileURL,
            let content = try? String(contentsOf: initialFileURL, encoding: .utf8) {
-            _markdown = State(initialValue: content)
-            _fileName = State(initialValue: initialFileURL.lastPathComponent)
-            _folderName = State(initialValue: initialFileURL.deletingLastPathComponent().lastPathComponent)
+            let document = MarkdownDocument(url: initialFileURL, markdown: content)
+            _documents = State(initialValue: [document])
+            _selectedDocumentID = State(initialValue: document.id)
+        } else {
+            _documents = State(initialValue: [])
+            _selectedDocumentID = State(initialValue: nil)
         }
     }
 
@@ -36,6 +38,7 @@ struct ContentView: View {
             sidebar
             VStack(spacing: 0) {
                 topBar
+                tabBar
                 workspace
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -53,7 +56,7 @@ struct ContentView: View {
         .onDrop(of: droppableTypes, isTargeted: $isDropTargeted, perform: handleDrop)
         .fileImporter(isPresented: $showImporter, allowedContentTypes: importableTypes) { result in
             if case .success(let url) = result {
-                loadMarkdown(from: url)
+                openMarkdown(from: url)
             }
         }
     }
@@ -180,7 +183,7 @@ struct ContentView: View {
                 Text("Markdown Viewer")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(AppColor.mutedInk)
-                Text(fileName)
+                Text(activeDocument?.fileName ?? "No document")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(AppColor.ink)
                     .lineLimit(1)
@@ -197,6 +200,94 @@ struct ContentView: View {
             Rectangle()
                 .fill(AppColor.hairline)
                 .frame(height: 1)
+        }
+    }
+
+    private var tabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(documents) { document in
+                    documentTab(document)
+                }
+
+                Button {
+                    showImporter = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundStyle(AppColor.ink)
+                        .frame(width: 34, height: 34)
+                        .background(Color.white.opacity(0.72))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(AppColor.hairline, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("Open file")
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+        }
+        .frame(height: 56)
+        .background(AppColor.toolbar.opacity(0.82))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppColor.hairline)
+                .frame(height: 1)
+        }
+    }
+
+    private func documentTab(_ document: MarkdownDocument) -> some View {
+        let isSelected = document.id == selectedDocumentID
+        return HStack(spacing: 8) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(isSelected ? .white.opacity(0.9) : AppColor.mutedInk)
+
+            Text(document.fileName)
+                .font(.system(size: 13, weight: .bold))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(isSelected ? .white : AppColor.ink)
+                .frame(maxWidth: 170, alignment: .leading)
+
+            Button {
+                reloadDocument(document)
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(isSelected ? .white.opacity(0.78) : AppColor.mutedInk)
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.plain)
+            .disabled(document.url == nil)
+            .help("Reload file")
+
+            Button {
+                closeDocument(document)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(isSelected ? .white.opacity(0.74) : AppColor.mutedInk)
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.plain)
+            .help("Close tab")
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 7)
+        .frame(height: 36)
+        .background(isSelected ? AppColor.accent : Color.white.opacity(0.74))
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(isSelected ? AppColor.accent : AppColor.hairline, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectDocument(document.id)
         }
     }
 
@@ -231,32 +322,67 @@ struct ContentView: View {
 
     @ViewBuilder
     private var workspace: some View {
-        switch viewMode {
-        case .split:
-            HStack(spacing: 16) {
+        if activeDocument == nil {
+            emptyState
+                .padding(18)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            switch viewMode {
+            case .split:
+                HStack(spacing: 16) {
+                    editorPanel
+                        .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+                    previewPanel
+                        .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .code:
                 editorPanel
-                    .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(18)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .preview:
                 previewPanel
-                    .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(18)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .code:
-            editorPanel
-                .padding(18)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .preview:
-            previewPanel
-                .padding(18)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 42, weight: .semibold))
+                .foregroundStyle(AppColor.mutedInk)
+
+            VStack(spacing: 6) {
+                Text("No document open")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(AppColor.ink)
+                Text("Open or drop Markdown files to start reading.")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(AppColor.mutedInk)
+            }
+
+            actionButton(title: "Open file", icon: "folder") {
+                showImporter = true
+            }
+            .frame(width: 180)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppColor.paper)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(AppColor.hairline, lineWidth: 1)
+        )
     }
 
     private var editorPanel: some View {
         VStack(spacing: 0) {
             panelHeader(title: "Code", icon: "curlybraces", detail: "Markdown source")
             findReplaceBar
-            MarkdownEditor(text: $markdown, selectionRequest: $editorSelectionRequest)
+            MarkdownEditor(text: activeMarkdownBinding, selectionRequest: $editorSelectionRequest)
         }
         .background(AppColor.editor)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -357,8 +483,8 @@ struct ContentView: View {
         VStack(spacing: 0) {
             panelHeader(title: "Preview", icon: "doc.richtext", detail: displayFontName(effectiveFontName))
                 .background(AppColor.paper)
-            MarkdownPreview(markdown: markdown, fontName: effectiveFontName, fontSize: fontSize, accentColor: accentColor) { url in
-                loadDroppedMarkdown(from: url)
+            MarkdownPreview(markdown: activeDocument?.markdown ?? "", fontName: effectiveFontName, fontSize: fontSize, accentColor: accentColor) { urls in
+                loadDroppedMarkdown(from: urls)
             }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(AppColor.paper)
@@ -430,18 +556,20 @@ struct ContentView: View {
     }
 
     private var wordCount: Int {
-        markdown
+        guard let markdown = activeDocument?.markdown else { return 0 }
+        return markdown
             .split { $0.isWhitespace || $0.isNewline }
             .filter { !$0.isEmpty }
             .count
     }
 
     private var lineCount: Int {
-        max(markdown.components(separatedBy: .newlines).count, 1)
+        guard let markdown = activeDocument?.markdown else { return 0 }
+        return max(markdown.components(separatedBy: .newlines).count, 1)
     }
 
     private var findRanges: [NSRange] {
-        guard !findText.isEmpty else { return [] }
+        guard !findText.isEmpty, let markdown = activeDocument?.markdown else { return [] }
         let source = markdown as NSString
         let searchRange = NSRange(location: 0, length: source.length)
         var ranges: [NSRange] = []
@@ -481,6 +609,69 @@ struct ContentView: View {
 
     private func displayFontName(_ font: String) -> String {
         font == "Vazirmatn-Regular" ? "Vazirmatn" : font
+    }
+
+    private var activeDocument: MarkdownDocument? {
+        guard let selectedDocumentID else { return nil }
+        return documents.first { $0.id == selectedDocumentID }
+    }
+
+    private var activeDocumentIndex: Int? {
+        guard let selectedDocumentID else { return nil }
+        return documents.firstIndex { $0.id == selectedDocumentID }
+    }
+
+    private var activeMarkdownBinding: Binding<String> {
+        Binding(
+            get: { activeDocument?.markdown ?? "" },
+            set: { setActiveMarkdown($0) }
+        )
+    }
+
+    private func setActiveMarkdown(_ value: String) {
+        guard let activeDocumentIndex else { return }
+        documents[activeDocumentIndex].markdown = value
+    }
+
+    private func selectDocument(_ id: MarkdownDocument.ID) {
+        selectedDocumentID = id
+        currentMatchRange = nil
+        editorSelectionRequest = nil
+    }
+
+    private func closeDocument(_ document: MarkdownDocument) {
+        guard documents.count > 1 else {
+            documents = []
+            selectedDocumentID = nil
+            currentMatchRange = nil
+            editorSelectionRequest = nil
+            return
+        }
+
+        guard let index = documents.firstIndex(where: { $0.id == document.id }) else { return }
+        let wasSelected = document.id == selectedDocumentID
+        documents.remove(at: index)
+
+        if wasSelected {
+            let nextIndex = min(index, documents.count - 1)
+            selectDocument(documents[nextIndex].id)
+        }
+    }
+
+    private func reloadDocument(_ document: MarkdownDocument) {
+        guard let url = document.url,
+              let index = documents.firstIndex(where: { $0.id == document.id }) else { return }
+
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard let content = try? String(contentsOf: url, encoding: .utf8) else { return }
+        documents[index].markdown = content
+        selectDocument(document.id)
     }
 
     private func selectNextMatch() {
@@ -523,7 +714,7 @@ struct ContentView: View {
     }
 
     private func replaceCurrentMatch() {
-        guard let currentMatchRange else { return }
+        guard let currentMatchRange, let markdown = activeDocument?.markdown else { return }
         let source = NSMutableString(string: markdown)
         guard NSMaxRange(currentMatchRange) <= source.length else {
             self.currentMatchRange = nil
@@ -531,7 +722,7 @@ struct ContentView: View {
         }
 
         source.replaceCharacters(in: currentMatchRange, with: replaceText)
-        markdown = source as String
+        setActiveMarkdown(source as String)
 
         let replacementEnd = currentMatchRange.location + (replaceText as NSString).length
         self.currentMatchRange = nil
@@ -539,8 +730,8 @@ struct ContentView: View {
     }
 
     private func replaceAllMatches() {
-        guard !findText.isEmpty else { return }
-        markdown = markdown.replacingOccurrences(of: findText, with: replaceText, options: [.caseInsensitive])
+        guard !findText.isEmpty, let markdown = activeDocument?.markdown else { return }
+        setActiveMarkdown(markdown.replacingOccurrences(of: findText, with: replaceText, options: [.caseInsensitive]))
         currentMatchRange = nil
         editorSelectionRequest = nil
     }
@@ -552,7 +743,7 @@ struct ContentView: View {
         selectMatch(nextRange)
     }
 
-    private func loadMarkdown(from url: URL) {
+    private func openMarkdown(from url: URL) {
         let didAccess = url.startAccessingSecurityScopedResource()
         defer {
             if didAccess {
@@ -560,28 +751,44 @@ struct ContentView: View {
             }
         }
         guard let content = try? String(contentsOf: url, encoding: .utf8) else { return }
-        markdown = content
-        fileName = url.lastPathComponent
-        folderName = url.deletingLastPathComponent().lastPathComponent
+        let standardizedURL = url.standardizedFileURL
+
+        if let existingIndex = documents.firstIndex(where: { $0.url?.standardizedFileURL == standardizedURL }) {
+            documents[existingIndex].markdown = content
+            selectDocument(documents[existingIndex].id)
+            return
+        }
+
+        let document = MarkdownDocument(url: standardizedURL, markdown: content)
+        documents.append(document)
+        selectDocument(document.id)
     }
 
     private func loadDroppedMarkdown(from url: URL) {
-        loadMarkdown(from: url)
+        loadDroppedMarkdown(from: [url])
+    }
+
+    private func loadDroppedMarkdown(from urls: [URL]) {
+        urls.forEach { openMarkdown(from: $0) }
         viewMode = .preview
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first(where: { provider in
+        let fileProviders = providers.filter { provider in
             droppableTypes.contains { provider.hasItemConformingToTypeIdentifier($0) }
-        }) else {
+        }
+        guard !fileProviders.isEmpty else {
             return false
         }
 
-        let type = droppableTypes.first { provider.hasItemConformingToTypeIdentifier($0) } ?? UTType.fileURL.identifier
-        provider.loadItem(forTypeIdentifier: type, options: nil) { item, _ in
-            guard let url = DropURLDecoder.fileURL(from: item) else { return }
-            DispatchQueue.main.async {
-                loadDroppedMarkdown(from: url)
+        for provider in fileProviders {
+            let type = droppableTypes.first { provider.hasItemConformingToTypeIdentifier($0) } ?? UTType.fileURL.identifier
+            provider.loadItem(forTypeIdentifier: type, options: nil) { item, _ in
+                let urls = DropURLDecoder.fileURLs(from: item)
+                guard !urls.isEmpty else { return }
+                DispatchQueue.main.async {
+                    loadDroppedMarkdown(from: urls)
+                }
             }
         }
 
@@ -589,14 +796,15 @@ struct ContentView: View {
     }
 
     private func exportHTML() {
+        guard let activeDocument else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.html]
-        panel.nameFieldStringValue = fileName.replacingOccurrences(of: ".md", with: ".html")
+        panel.nameFieldStringValue = activeDocument.fileName.replacingOccurrences(of: ".md", with: ".html")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try MarkdownHTMLRenderer.html(
-                for: markdown,
-                title: fileName,
+                for: activeDocument.markdown,
+                title: activeDocument.fileName,
                 fontName: effectiveFontName,
                 fontSize: fontSize,
                 accent: NSColor(accentColor).hexString
@@ -633,24 +841,55 @@ private enum ViewMode: String, CaseIterable, Identifiable {
     }
 }
 
+private struct MarkdownDocument: Identifiable, Equatable {
+    let id: UUID
+    var url: URL?
+    var fileName: String
+    var folderName: String
+    var markdown: String
+
+    init(id: UUID = UUID(), url: URL?, markdown: String) {
+        self.id = id
+        self.url = url
+        self.fileName = url?.lastPathComponent ?? "README.md"
+        self.folderName = url?.deletingLastPathComponent().lastPathComponent ?? "introToMarkdown"
+        self.markdown = markdown
+    }
+
+    static let sample = MarkdownDocument(url: nil, markdown: sampleMarkdown)
+}
+
 private extension UTType {
     static let mdFile = UTType(filenameExtension: "md") ?? .plainText
 }
 
 private enum DropURLDecoder {
-    static func fileURL(from item: NSSecureCoding?) -> URL? {
+    static func fileURLs(from item: NSSecureCoding?) -> [URL] {
         if let url = item as? URL {
-            return url
+            return [url]
+        }
+
+        if let urls = item as? [URL] {
+            return urls
         }
 
         if let data = item as? Data {
-            return URL(dataRepresentation: data, relativeTo: nil)
+            if let url = URL(dataRepresentation: data, relativeTo: nil) {
+                return [url]
+            }
+            if let string = String(data: data, encoding: .utf8) {
+                return fileURLs(from: string as NSString)
+            }
         }
 
         if let string = item as? String {
-            return URL(string: string) ?? URL(fileURLWithPath: string)
+            let values = string
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            return values.map { URL(string: $0) ?? URL(fileURLWithPath: $0) }
         }
 
-        return nil
+        return []
     }
 }

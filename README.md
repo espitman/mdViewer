@@ -8,6 +8,8 @@ MD Viewer is focused on opening local `.md` files quickly, rendering them in a c
 
 - Open Markdown files from the file picker.
 - Drag and drop `.md` files into the app.
+- Open and switch between multiple documents with tabs.
+- Reload a tab from disk when the file changes outside the app.
 - Preview-first interface with optional source/code view.
 - Selectable text in preview.
 - Persian-friendly typography with bundled Vazirmatn.
