@@ -54,6 +54,9 @@ struct ContentView: View {
             }
         }
         .onDrop(of: droppableTypes, isTargeted: $isDropTargeted, perform: handleDrop)
+        .onReceive(NotificationCenter.default.publisher(for: .reloadActiveDocumentCommand)) { _ in
+            reloadActiveDocument()
+        }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: importableTypes) { result in
             if case .success(let url) = result {
                 openMarkdown(from: url)
@@ -495,7 +498,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(activeDocument?.url == nil)
-                .help("Reload file")
+                .help("Reload file (Command-R)")
             }
                 .background(AppColor.paper)
             MarkdownPreview(

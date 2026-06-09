@@ -9,7 +9,7 @@ MD Viewer is focused on opening local `.md` files quickly, rendering them in a c
 - Open Markdown files from the file picker.
 - Drag and drop `.md` files into the app.
 - Open and switch between multiple documents with tabs.
-- Reload a tab from disk when the file changes outside the app.
+- Reload a tab from disk with the toolbar button or `Command-R`.
 - Preview-first interface with optional source/code view.
 - Selectable text in preview.
 - Persian-friendly typography with bundled Vazirmatn.
@@ -69,14 +69,14 @@ swift build -c release
 ## Create a DMG
 
 ```bash
-./package-dmg.sh 1
+./package-dmg.sh 1.1
 ```
 
 The generated app and installer will be placed in:
 
 ```text
 dist/MD Viewer.app
-dist/MD_Viewer_v1.dmg
+dist/MD_Viewer_v1.1.dmg
 ```
 
 To install manually, drag `MD Viewer.app` into `/Applications`, or copy it with:
