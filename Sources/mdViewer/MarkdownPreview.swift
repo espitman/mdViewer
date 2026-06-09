@@ -10,11 +10,12 @@ struct MarkdownPreview: NSViewRepresentable {
     let fontSize: Double
     let accentColor: Color
     let scrollY: Double
+    var onLoadingChange: (Bool) -> Void = { _ in }
     var onFileDrop: ([URL]) -> Void = { _ in }
     var onScrollChange: (Double) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onScrollChange: onScrollChange)
+        Coordinator(onLoadingChange: onLoadingChange, onScrollChange: onScrollChange)
     }
 
     func makeNSView(context: Context) -> DroppableMarkdownWebView {
@@ -25,17 +26,22 @@ struct MarkdownPreview: NSViewRepresentable {
         let webView = DroppableMarkdownWebView(frame: .zero, configuration: configuration)
         webView.renderFingerprint = renderFingerprint
         webView.onFileDrop = onFileDrop
+        webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
         webView.allowsMagnification = true
+        context.coordinator.setLoading(true)
         webView.loadHTMLString(html, baseURL: Bundle.module.resourceURL)
         return webView
     }
 
     func updateNSView(_ webView: DroppableMarkdownWebView, context: Context) {
+        context.coordinator.onLoadingChange = onLoadingChange
         context.coordinator.onScrollChange = onScrollChange
         webView.onFileDrop = onFileDrop
+        webView.navigationDelegate = context.coordinator
         guard webView.renderFingerprint != renderFingerprint else { return }
         webView.renderFingerprint = renderFingerprint
+        context.coordinator.setLoading(true)
         webView.loadHTMLString(html, baseURL: Bundle.module.resourceURL)
     }
 
@@ -60,11 +66,31 @@ struct MarkdownPreview: NSViewRepresentable {
         ].joined(separator: "\u{1F}")
     }
 
-    final class Coordinator: NSObject, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        var onLoadingChange: (Bool) -> Void
         var onScrollChange: (Double) -> Void
 
-        init(onScrollChange: @escaping (Double) -> Void) {
+        init(onLoadingChange: @escaping (Bool) -> Void, onScrollChange: @escaping (Double) -> Void) {
+            self.onLoadingChange = onLoadingChange
             self.onScrollChange = onScrollChange
+        }
+
+        func setLoading(_ isLoading: Bool) {
+            DispatchQueue.main.async {
+                self.onLoadingChange(isLoading)
+            }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            setLoading(false)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            setLoading(false)
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            setLoading(false)
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {

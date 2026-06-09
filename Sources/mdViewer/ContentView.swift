@@ -17,6 +17,12 @@ struct ContentView: View {
     @State private var currentMatchRange: NSRange?
     @State private var editorSelectionRequest: EditorSelectionRequest?
     @State private var reloadKeyDownMonitor: Any?
+    @State private var didJustReload = false
+    @State private var reloadFeedbackID = UUID()
+    @State private var isPreviewLoading = false
+    @State private var showQuitPrompt = false
+    @State private var quitPromptID = UUID()
+    @State private var loaderShimmer = false
 
     private let fonts = ["Vazirmatn-Regular", "Helvetica Neue", "Avenir Next", "SF Pro"]
     private let importableTypes: [UTType] = [.mdFile, .plainText, .text]
@@ -54,15 +60,34 @@ struct ContentView: View {
                     .padding(8)
             }
         }
+        .overlay(alignment: .top) {
+            if showQuitPrompt {
+                quitPromptToast
+                    .padding(.top, 112)
+            }
+        }
         .onDrop(of: droppableTypes, isTargeted: $isDropTargeted, perform: handleDrop)
         .onAppear {
             installReloadShortcutMonitor()
+            openPendingLaunchFiles()
         }
         .onDisappear {
             removeReloadShortcutMonitor()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openMarkdownFilesCommand)) { notification in
+            openPendingLaunchFiles()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            openPendingLaunchFiles()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .reloadActiveDocumentCommand)) { _ in
             reloadActiveDocument()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showQuitHoldPrompt)) { _ in
+            showQuitHoldPrompt()
+        }
+        .onOpenURL { url in
+            loadDroppedMarkdown(from: [url])
         }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: importableTypes) { result in
             if case .success(let url) = result {
@@ -187,6 +212,23 @@ struct ContentView: View {
         .background(AppColor.sidebar)
     }
 
+    private var quitPromptToast: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "command")
+                .font(.system(size: 18, weight: .black))
+            Text("Press ⌘Q again to Quit")
+                .font(.system(size: 18, weight: .black))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 28)
+        .frame(height: 62)
+        .background(Color.black.opacity(0.74))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: .black.opacity(0.22), radius: 24, x: 0, y: 14)
+        .transition(.scale(scale: 0.96).combined(with: .opacity))
+        .animation(.spring(response: 0.26, dampingFraction: 0.86), value: showQuitPrompt)
+    }
+
     private var topBar: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 2) {
@@ -206,6 +248,18 @@ struct ContentView: View {
         .padding(.horizontal, 28)
         .frame(height: 86)
         .background(AppColor.toolbar)
+        .overlay {
+            HStack(spacing: 0) {
+                HeaderDoubleClickArea()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityHidden(true)
+
+                Color.clear
+                    .frame(width: 320)
+                    .allowsHitTesting(false)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(AppColor.hairline)
@@ -488,20 +542,21 @@ struct ContentView: View {
                     reloadActiveDocument()
                 } label: {
                     HStack(spacing: 7) {
-                        Image(systemName: "arrow.clockwise")
+                        Image(systemName: didJustReload ? "checkmark" : "arrow.clockwise")
                             .font(.system(size: 12, weight: .black))
-                        Text("Reload")
+                        Text(didJustReload ? "Reloaded" : "Reload")
                             .font(.system(size: 12, weight: .bold))
                     }
-                    .foregroundStyle(AppColor.ink)
+                    .foregroundStyle(didJustReload ? .white : AppColor.ink)
                     .padding(.horizontal, 12)
                     .frame(height: 30)
-                    .background(Color.black.opacity(0.045))
+                    .background(didJustReload ? AppColor.accent : Color.black.opacity(0.045))
                     .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .stroke(AppColor.hairline, lineWidth: 1)
+                            .stroke(didJustReload ? AppColor.accent : AppColor.hairline, lineWidth: 1)
                     )
+                    .animation(.easeOut(duration: 0.16), value: didJustReload)
                 }
                 .buttonStyle(.plain)
                 .disabled(activeDocument?.url == nil)
@@ -515,6 +570,9 @@ struct ContentView: View {
                 fontSize: fontSize,
                 accentColor: accentColor,
                 scrollY: activeDocument?.scrollY ?? 0,
+                onLoadingChange: { isLoading in
+                    isPreviewLoading = isLoading
+                },
                 onFileDrop: { urls in
                     loadDroppedMarkdown(from: urls)
                 },
@@ -524,6 +582,11 @@ struct ContentView: View {
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(AppColor.paper)
+                .overlay {
+                    if isPreviewLoading {
+                        previewLoader
+                    }
+                }
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
@@ -662,6 +725,103 @@ struct ContentView: View {
         )
     }
 
+    private var previewLoader: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Rendering preview")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(AppColor.mutedInk)
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 18) {
+                loaderBar(width: 360, height: 34)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    loaderBar(width: 540, height: 14)
+                    loaderBar(width: 500, height: 14)
+                    loaderBar(width: 430, height: 14)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    loaderBar(width: 220, height: 24)
+                    loaderBar(width: 620, height: 13)
+                    loaderBar(width: 570, height: 13)
+                    loaderBar(width: 490, height: 13)
+                }
+
+                VStack(alignment: .leading, spacing: 11) {
+                    loaderBar(width: 690, height: 42)
+                    loaderBar(width: 610, height: 42)
+                    loaderBar(width: 660, height: 42)
+                }
+                .padding(.top, 6)
+            }
+            .overlay {
+                GeometryReader { proxy in
+                    LinearGradient(
+                        colors: [.clear, .white.opacity(0.58), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(width: 130, height: proxy.size.height * 1.6)
+                    .rotationEffect(.degrees(18))
+                    .offset(x: loaderShimmer ? proxy.size.width + 120 : -220)
+                }
+                .mask(loaderSkeletonMask)
+                .allowsHitTesting(false)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 48)
+        .padding(.top, 34)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(AppColor.paper.opacity(0.94))
+        .transition(.opacity)
+        .animation(.easeOut(duration: 0.14), value: isPreviewLoading)
+        .onAppear {
+            loaderShimmer = false
+            withAnimation(.linear(duration: 1.15).repeatForever(autoreverses: false)) {
+                loaderShimmer = true
+            }
+        }
+    }
+
+    private var loaderSkeletonMask: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            loaderBar(width: 360, height: 34)
+
+            VStack(alignment: .leading, spacing: 10) {
+                loaderBar(width: 540, height: 14)
+                loaderBar(width: 500, height: 14)
+                loaderBar(width: 430, height: 14)
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                loaderBar(width: 220, height: 24)
+                loaderBar(width: 620, height: 13)
+                loaderBar(width: 570, height: 13)
+                loaderBar(width: 490, height: 13)
+            }
+
+            VStack(alignment: .leading, spacing: 11) {
+                loaderBar(width: 690, height: 42)
+                loaderBar(width: 610, height: 42)
+                loaderBar(width: 660, height: 42)
+            }
+            .padding(.top, 6)
+        }
+    }
+
+    private func loaderBar(width: CGFloat, height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: min(8, height / 2), style: .continuous)
+            .fill(Color.black.opacity(0.055))
+            .frame(maxWidth: width, minHeight: height, maxHeight: height)
+    }
+
     private func setActiveMarkdown(_ value: String) {
         guard let activeDocumentIndex else { return }
         documents[activeDocumentIndex].markdown = value
@@ -697,9 +857,10 @@ struct ContentView: View {
         }
     }
 
-    private func reloadDocument(_ document: MarkdownDocument) {
+    @discardableResult
+    private func reloadDocument(_ document: MarkdownDocument) -> Bool {
         guard let url = document.url,
-              let index = documents.firstIndex(where: { $0.id == document.id }) else { return }
+              let index = documents.firstIndex(where: { $0.id == document.id }) else { return false }
 
         let didAccess = url.startAccessingSecurityScopedResource()
         defer {
@@ -708,14 +869,43 @@ struct ContentView: View {
             }
         }
 
-        guard let content = try? String(contentsOf: url, encoding: .utf8) else { return }
+        guard let content = try? String(contentsOf: url, encoding: .utf8) else { return false }
         documents[index].markdown = content
         selectDocument(document.id)
+        return true
     }
 
     private func reloadActiveDocument() {
         guard let activeDocument else { return }
-        reloadDocument(activeDocument)
+        guard reloadDocument(activeDocument) else { return }
+        showReloadFeedback()
+    }
+
+    private func showReloadFeedback() {
+        let feedbackID = UUID()
+        reloadFeedbackID = feedbackID
+        didJustReload = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            guard reloadFeedbackID == feedbackID else { return }
+            didJustReload = false
+        }
+    }
+
+    private func showQuitHoldPrompt() {
+        let promptID = UUID()
+        quitPromptID = promptID
+        showQuitPrompt = true
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            guard quitPromptID == promptID else { return }
+            showQuitPrompt = false
+        }
+    }
+
+    private func openPendingLaunchFiles() {
+        let urls = AppDelegate.consumePendingOpenFileURLs()
+        guard !urls.isEmpty else { return }
+        loadDroppedMarkdown(from: urls)
     }
 
     private func installReloadShortcutMonitor() {
@@ -906,6 +1096,27 @@ private enum ViewMode: String, CaseIterable, Identifiable {
         case .code: "curlybraces"
         case .preview: "doc.richtext"
         }
+    }
+}
+
+private struct HeaderDoubleClickArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> HeaderDoubleClickNSView {
+        HeaderDoubleClickNSView()
+    }
+
+    func updateNSView(_ nsView: HeaderDoubleClickNSView, context: Context) {}
+}
+
+private final class HeaderDoubleClickNSView: NSView {
+    override func mouseDown(with event: NSEvent) {
+        guard let window else { return }
+
+        if event.clickCount == 2 {
+            window.zoom(nil)
+            return
+        }
+
+        window.performDrag(with: event)
     }
 }
 

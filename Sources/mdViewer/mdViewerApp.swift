@@ -1,7 +1,9 @@
 import SwiftUI
 
 extension Notification.Name {
+    static let openMarkdownFilesCommand = Notification.Name("openMarkdownFilesCommand")
     static let reloadActiveDocumentCommand = Notification.Name("reloadActiveDocumentCommand")
+    static let showQuitHoldPrompt = Notification.Name("showQuitHoldPrompt")
 }
 
 @main
