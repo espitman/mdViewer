@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var replaceText = ""
     @State private var currentMatchRange: NSRange?
     @State private var editorSelectionRequest: EditorSelectionRequest?
+    @State private var reloadKeyDownMonitor: Any?
 
     private let fonts = ["Vazirmatn-Regular", "Helvetica Neue", "Avenir Next", "SF Pro"]
     private let importableTypes: [UTType] = [.mdFile, .plainText, .text]
@@ -54,6 +55,12 @@ struct ContentView: View {
             }
         }
         .onDrop(of: droppableTypes, isTargeted: $isDropTargeted, perform: handleDrop)
+        .onAppear {
+            installReloadShortcutMonitor()
+        }
+        .onDisappear {
+            removeReloadShortcutMonitor()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .reloadActiveDocumentCommand)) { _ in
             reloadActiveDocument()
         }
@@ -709,6 +716,30 @@ struct ContentView: View {
     private func reloadActiveDocument() {
         guard let activeDocument else { return }
         reloadDocument(activeDocument)
+    }
+
+    private func installReloadShortcutMonitor() {
+        guard reloadKeyDownMonitor == nil else { return }
+
+        reloadKeyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let isCommandReload = flags.contains(.command)
+                && event.charactersIgnoringModifiers?.lowercased() == "r"
+
+            if isCommandReload {
+                NotificationCenter.default.post(name: .reloadActiveDocumentCommand, object: nil)
+                return nil
+            }
+
+            return event
+        }
+    }
+
+    private func removeReloadShortcutMonitor() {
+        if let reloadKeyDownMonitor {
+            NSEvent.removeMonitor(reloadKeyDownMonitor)
+            self.reloadKeyDownMonitor = nil
+        }
     }
 
     private func selectNextMatch() {

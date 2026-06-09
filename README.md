@@ -69,14 +69,14 @@ swift build -c release
 ## Create a DMG
 
 ```bash
-./package-dmg.sh 1.1
+./package-dmg.sh 1.2
 ```
 
 The generated app and installer will be placed in:
 
 ```text
 dist/MD Viewer.app
-dist/MD_Viewer_v1.1.dmg
+dist/MD_Viewer_v1.2.dmg
 ```
 
 To install manually, drag `MD Viewer.app` into `/Applications`, or copy it with:
