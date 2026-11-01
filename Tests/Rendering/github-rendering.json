@@ -1,0 +1,107 @@
+{
+  "endpoint": "https://api.github.com/markdown",
+  "mode": "gfm",
+  "cases": [
+    {
+      "example": 140,
+      "source": "<script type=\"text/javascript\">\n// JavaScript example\n\ndocument.getElementById(\"demo\").innerHTML = \"Hello JavaScript!\";\n</script>\nokay\n",
+      "expected": "&lt;script type=\"text/javascript\"&gt;\n// JavaScript example\n\ndocument.getElementById(\"demo\").innerHTML = \"Hello JavaScript!\";\n&lt;/script&gt;\n<p>okay</p>"
+    },
+    {
+      "example": 141,
+      "source": "<style\n  type=\"text/css\">\nh1 {color:red;}\n\np {color:blue;}\n</style>\nokay\n",
+      "expected": "&lt;style\n  type=\"text/css\"&gt;\nh1 {color:red;}\n\np {color:blue;}\n&lt;/style&gt;\n<p>okay</p>"
+    },
+    {
+      "example": 142,
+      "source": "<style\n  type=\"text/css\">\n\nfoo\n",
+      "expected": "&lt;style\n  type=\"text/css\"&gt;\n\nfoo"
+    },
+    {
+      "example": 145,
+      "source": "<style>p{color:red;}</style>\n*foo*\n",
+      "expected": "&lt;style&gt;p{color:red;}&lt;/style&gt;\n<p><em>foo</em></p>"
+    },
+    {
+      "example": 147,
+      "source": "<script>\nfoo\n</script>1. *bar*\n",
+      "expected": "&lt;script&gt;\nfoo\n&lt;/script&gt;1. *bar*"
+    },
+    {
+      "example": 611,
+      "source": "<http://foo.bar/baz bim>\n",
+      "expected": "<p>&lt;<a href=\"http://foo.bar/baz\" rel=\"nofollow\">http://foo.bar/baz</a> bim&gt;</p>"
+    },
+    {
+      "example": 615,
+      "source": "<foo\\+@bar.example.com>\n",
+      "expected": "<p>&lt;<a href=\"mailto:foo+@bar.example.com\">foo+@bar.example.com</a>&gt;</p>"
+    },
+    {
+      "example": 617,
+      "source": "< http://foo.bar >\n",
+      "expected": "<p>&lt; <a href=\"http://foo.bar\" rel=\"nofollow\">http://foo.bar</a> &gt;</p>"
+    },
+    {
+      "example": 620,
+      "source": "http://example.com\n",
+      "expected": "<p><a href=\"http://example.com\" rel=\"nofollow\">http://example.com</a></p>"
+    },
+    {
+      "example": 621,
+      "source": "foo@bar.example.com\n",
+      "expected": "<p><a href=\"mailto:foo@bar.example.com\">foo@bar.example.com</a></p>"
+    },
+    {
+      "example": 649,
+      "source": "foo <!-- not a comment -- two hyphens -->\n",
+      "expected": "<p>foo </p>"
+    },
+    {
+      "example": 650,
+      "source": "foo <!--> foo -->\n\nfoo <!-- foo--->\n",
+      "expected": "<p>foo  foo --&gt;</p>\n<p>foo &lt;!-- foo---&gt;</p>"
+    },
+    {
+      "example": "comment-emphasis",
+      "source": "foo <!-- **bold**--->",
+      "expected": "<p>foo &lt;!-- <strong>bold</strong>---&gt;</p>"
+    },
+    {
+      "example": "comment-link",
+      "source": "foo <!-- [link](https://example.com)--->",
+      "expected": "<p>foo &lt;!-- <a href=\"https://example.com\" rel=\"nofollow\">link</a>---&gt;</p>"
+    },
+    {
+      "example": "comment-valid",
+      "source": "foo <!-- valid --> after",
+      "expected": "<p>foo  after</p>"
+    },
+    {
+      "example": "comment-empty",
+      "source": "foo <!----> after",
+      "expected": "<p>foo  after</p>"
+    },
+    {
+      "example": "comment-multiple-dashes",
+      "source": "foo <!-- bad----> after",
+      "expected": "<p>foo &lt;!-- bad----&gt; after</p>"
+    },
+    {
+      "example": "comment-block",
+      "source": "<!-- foo--->\n\n**after**",
+      "expected": "\n<p><strong>after</strong></p>"
+    },
+    {
+      "example": "comment-inline-code",
+      "source": "`<!-- foo--->`",
+      "expected": "<p><code class=\"notranslate\">&lt;!-- foo---&gt;</code></p>"
+    },
+    {
+      "example": "comment-fenced-code",
+      "source": "```html\n<!-- foo--->\n```",
+      "expected": "<div class=\"highlight highlight-text-html-basic\"><pre class=\"notranslate\"><span class=\"pl-c\">&lt;!-- foo---&gt;</span></pre></div>"
+    }
+  ],
+  "fetchedAt": "2026-11-01T09:03:21.249Z"
+}

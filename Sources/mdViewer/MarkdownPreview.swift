@@ -6,6 +6,7 @@ import WebKit
 struct MarkdownPreview: NSViewRepresentable {
     let documentID: UUID?
     let markdown: String
+    var documentURL: URL? = nil
     let fontName: String
     let fontSize: Double
     let accentColor: Color
@@ -15,13 +16,14 @@ struct MarkdownPreview: NSViewRepresentable {
     var onScrollChange: (Double) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onLoadingChange: onLoadingChange, onScrollChange: onScrollChange)
+        Coordinator(onLoadingChange: onLoadingChange, onScrollChange: onScrollChange, onFileDrop: onFileDrop)
     }
 
     func makeNSView(context: Context) -> DroppableMarkdownWebView {
         let configuration = WKWebViewConfiguration()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.userContentController.add(context.coordinator, name: "scroll")
+        configuration.userContentController.add(context.coordinator, name: "openLink")
 
         let webView = DroppableMarkdownWebView(frame: .zero, configuration: configuration)
         webView.renderFingerprint = renderFingerprint
@@ -30,19 +32,20 @@ struct MarkdownPreview: NSViewRepresentable {
         webView.setValue(false, forKey: "drawsBackground")
         webView.allowsMagnification = true
         context.coordinator.setLoading(true)
-        webView.loadHTMLString(html, baseURL: Bundle.module.resourceURL)
+        webView.loadHTMLString(html, baseURL: documentURL?.deletingLastPathComponent() ?? Bundle.module.resourceURL)
         return webView
     }
 
     func updateNSView(_ webView: DroppableMarkdownWebView, context: Context) {
         context.coordinator.onLoadingChange = onLoadingChange
         context.coordinator.onScrollChange = onScrollChange
+        context.coordinator.onFileDrop = onFileDrop
         webView.onFileDrop = onFileDrop
         webView.navigationDelegate = context.coordinator
         guard webView.renderFingerprint != renderFingerprint else { return }
         webView.renderFingerprint = renderFingerprint
         context.coordinator.setLoading(true)
-        webView.loadHTMLString(html, baseURL: Bundle.module.resourceURL)
+        webView.loadHTMLString(html, baseURL: documentURL?.deletingLastPathComponent() ?? Bundle.module.resourceURL)
     }
 
     private var html: String {
@@ -52,7 +55,8 @@ struct MarkdownPreview: NSViewRepresentable {
             fontName: fontName,
             fontSize: fontSize,
             accent: NSColor(accentColor).hexString,
-            initialScrollY: scrollY
+            initialScrollY: scrollY,
+            baseURL: documentURL?.deletingLastPathComponent()
         )
     }
 
@@ -69,15 +73,35 @@ struct MarkdownPreview: NSViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var onLoadingChange: (Bool) -> Void
         var onScrollChange: (Double) -> Void
+        var onFileDrop: ([URL]) -> Void
 
-        init(onLoadingChange: @escaping (Bool) -> Void, onScrollChange: @escaping (Double) -> Void) {
+        init(onLoadingChange: @escaping (Bool) -> Void, onScrollChange: @escaping (Double) -> Void, onFileDrop: @escaping ([URL]) -> Void) {
             self.onLoadingChange = onLoadingChange
             self.onScrollChange = onScrollChange
+            self.onFileDrop = onFileDrop
         }
 
         func setLoading(_ isLoading: Bool) {
             DispatchQueue.main.async {
                 self.onLoadingChange(isLoading)
+            }
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
+            guard navigationAction.navigationType == .linkActivated,
+                  let url = navigationAction.request.url else {
+                decisionHandler(.allow)
+                return
+            }
+            decisionHandler(.cancel)
+            openLink(url)
+        }
+
+        private func openLink(_ url: URL) {
+            if url.isFileURL, ["md", "markdown", "mdown", "mkd"].contains(url.pathExtension.lowercased()) {
+                onFileDrop([url])
+            } else if url.isFileURL || ["http", "https", "mailto", "xmpp"].contains(url.scheme?.lowercased() ?? "") {
+                NSWorkspace.shared.open(url)
             }
         }
 
@@ -94,6 +118,10 @@ struct MarkdownPreview: NSViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "openLink", let value = message.body as? String, let url = URL(string: value) {
+                openLink(url)
+                return
+            }
             guard message.name == "scroll" else { return }
 
             if let value = message.body as? Double {
@@ -173,9 +201,10 @@ enum MarkdownHTMLRenderer {
         fontName: String = "Vazirmatn-Regular",
         fontSize: Double = 16,
         accent: String = "#109ECC",
-        initialScrollY: Double = 0
+        initialScrollY: Double = 0,
+        baseURL: URL? = nil
     ) -> String {
-        let markdownItScript = ResourceLoader.string("markdown-it.min", "js")
+        let markdownEngineScript = ResourceLoader.string("markdown-engine.min", "js")
         let highlightScript = ResourceLoader.string("highlight.min", "js")
         let highlightCSS = ResourceLoader.string("highlight-github.min", "css")
         let mermaidScript = ResourceLoader.string("mermaid.min", "js")
@@ -191,6 +220,7 @@ enum MarkdownHTMLRenderer {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>\(escapedTitle)</title>
+          \(baseURL.map { "<base href=\"\(escapeHTML($0.absoluteString.hasSuffix("/") ? $0.absoluteString : $0.absoluteString + "/"))\">" } ?? "")
           <style>
             @font-face {
               font-family: 'Vazirmatn';
@@ -217,6 +247,8 @@ enum MarkdownHTMLRenderer {
             html, body {
               margin: 0;
               min-height: 100%;
+              width: 100%;
+              min-width: 0;
               background: var(--paper);
               color: var(--ink);
               font-family: var(--reader-font);
@@ -233,10 +265,22 @@ enum MarkdownHTMLRenderer {
             .markdown-body {
               box-sizing: border-box;
               width: min(100%, 1040px);
+              max-width: 100%;
+              min-width: 0;
+              position: relative;
               margin: 0 auto;
               padding: 46px 56px 80px;
               overflow-wrap: anywhere;
               user-select: text;
+            }
+
+            /* HTML width attributes must never enlarge the document viewport.
+               Wide code and tables keep their own scrollable containers. */
+            .markdown-body > *,
+            .markdown-body [width],
+            .markdown-body :is(pre, table, details, blockquote, .markdown-alert, .diagram-shell) {
+              box-sizing: border-box;
+              max-width: 100%;
             }
 
             .markdown-body:empty::before {
@@ -296,7 +340,7 @@ enum MarkdownHTMLRenderer {
             [dir="rtl"] {
               direction: rtl;
               text-align: right;
-              unicode-bidi: plaintext;
+              unicode-bidi: isolate;
             }
 
             [dir="rtl"] blockquote,
@@ -362,6 +406,7 @@ enum MarkdownHTMLRenderer {
               padding: .14em .34em;
               direction: ltr;
               unicode-bidi: isolate;
+              overflow-wrap: anywhere;
             }
 
             pre {
@@ -383,11 +428,13 @@ enum MarkdownHTMLRenderer {
               background: transparent;
               border-radius: 0;
               white-space: pre;
+              overflow-wrap: normal;
+              word-break: normal;
             }
 
             table {
               display: block;
-              width: 100%;
+              width: max-content;
               max-width: 100%;
               overflow: auto;
               border-collapse: collapse;
@@ -416,10 +463,34 @@ enum MarkdownHTMLRenderer {
               text-align: right;
             }
 
+            th[align="left"], td[align="left"] { text-align: left; }
+            th[align="right"], td[align="right"] { text-align: right; }
+            th[align="center"], td[align="center"] { text-align: center; }
+
             img {
               max-width: 100%;
+              height: auto;
               border-radius: 8px;
             }
+
+            details { margin-bottom: 1.18em; }
+            summary { cursor: pointer; font-weight: 700; }
+            kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; box-shadow: inset 0 -1px var(--line); font: .85em var(--mono-font); }
+            .footnotes { border-top: 1px solid var(--line); font-size: .9em; margin-top: 2em; }
+            .sr-only { position: absolute; inset-inline-start: 0; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); }
+            .markdown-alert { border-inline-start: 4px solid #0969da; padding: .4em 1em; margin-bottom: 1.18em; }
+            .markdown-alert-title { font-weight: 700; color: #0969da; margin-bottom: .5em; }
+            .markdown-alert-tip { border-color: #1a7f37; }
+            .markdown-alert-tip > .markdown-alert-title { color: #1a7f37; }
+            .markdown-alert-important { border-color: #8250df; }
+            .markdown-alert-important > .markdown-alert-title { color: #8250df; }
+            .markdown-alert-warning { border-color: #9a6700; }
+            .markdown-alert-warning > .markdown-alert-title { color: #9a6700; }
+            .markdown-alert-caution { border-color: #cf222e; }
+            .markdown-alert-caution > .markdown-alert-title { color: #cf222e; }
+            math { direction: ltr; unicode-bidi: isolate; }
+            math[display="block"] { max-width: 100%; overflow-x: auto; padding: 1em 0; }
+            pre code.hljs { background: transparent; padding: 0; }
 
             hr {
               height: 1px;
@@ -544,7 +615,7 @@ enum MarkdownHTMLRenderer {
         <body>
           <main id="content" class="markdown-body"></main>
 
-          <script>\(markdownItScript)</script>
+          <script>\(markdownEngineScript)</script>
           <script>\(highlightScript)</script>
           <script>\(mermaidScript)</script>
           <script>
@@ -564,55 +635,29 @@ enum MarkdownHTMLRenderer {
               return rtlPattern.test(value || '');
             }
 
-            function prepareTaskLists(source) {
-              return source.replace(/^(\\s*[-+*]\\s+)\\[( |x|X)\\]\\s+/gm, (_, prefix, checked) => {
-                const isChecked = checked.toLowerCase() === 'x' ? ' checked' : '';
-                return `${prefix}<input class="task-list-checkbox" type="checkbox" disabled${isChecked}> `;
+            function enhanceCode(root) {
+              root.querySelectorAll('pre > code').forEach((code) => {
+                if (code.classList.contains('language-mermaid')) {
+                  const shell = document.createElement('section');
+                  shell.className = 'diagram-shell';
+                  shell.innerHTML = `<div class="diagram-toolbar">
+                    <button type="button" data-action="zoom-out" title="Zoom out">−</button>
+                    <button type="button" data-action="reset" title="Reset">1:1</button>
+                    <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+                    <button type="button" data-action="fullscreen" title="Fullscreen">⛶</button>
+                    </div><div class="diagram-stage"><div class="diagram-content"><pre class="mermaid"></pre></div></div>`;
+                  shell.querySelector('.mermaid').textContent = code.textContent;
+                  code.parentElement.replaceWith(shell);
+                } else if (window.hljs) {
+                  // Unknown languages remain plain code; do not guess a language.
+                  const lang = Array.from(code.classList).find(c => c.startsWith('language-'))?.slice(9);
+                  if (lang && hljs.getLanguage(lang)) {
+                    code.innerHTML = hljs.highlight(code.textContent, {language: lang, ignoreIllegals: true}).value;
+                    code.classList.add('hljs');
+                  }
+                }
               });
             }
-
-            const md = window.markdownit({
-              html: true,
-              linkify: true,
-              typographer: false,
-              breaks: true,
-              highlight: (str, lang) => {
-                if (window.hljs && lang && hljs.getLanguage(lang)) {
-                  try {
-                    return `<pre class="hljs"><code>${hljs.highlight(str, { language: lang, ignoreIllegals: true }).value}</code></pre>`;
-                  } catch (_) {}
-                }
-                if (window.hljs) {
-                  try {
-                    return `<pre class="hljs"><code>${hljs.highlightAuto(str).value}</code></pre>`;
-                  } catch (_) {}
-                }
-                return `<pre class="hljs"><code>${escapeHtml(str)}</code></pre>`;
-              }
-            });
-
-            const defaultFence = md.renderer.rules.fence;
-            md.renderer.rules.fence = (tokens, idx, options, env, self) => {
-              const token = tokens[idx];
-              const info = token.info.trim().split(/\\s+/)[0].toLowerCase();
-              const content = token.content.trim();
-              const looksMermaid = /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|journey|gantt|pie|mindmap|timeline|gitGraph)\\b/.test(content);
-              if (info === 'mermaid' || (!info && looksMermaid)) {
-                return `
-                  <section class="diagram-shell">
-                    <div class="diagram-toolbar">
-                      <button type="button" data-action="zoom-out" title="Zoom out">−</button>
-                      <button type="button" data-action="reset" title="Reset">1:1</button>
-                      <button type="button" data-action="zoom-in" title="Zoom in">+</button>
-                      <button type="button" data-action="fullscreen" title="Fullscreen">⛶</button>
-                    </div>
-                    <div class="diagram-stage">
-                      <div class="diagram-content"><pre class="mermaid">${escapeHtml(content)}</pre></div>
-                    </div>
-                  </section>`;
-              }
-              return defaultFence(tokens, idx, options, env, self);
-            };
 
             function normalizeDirection(root) {
               const blockSelector = 'h1,h2,h3,h4,h5,h6,p,li,blockquote,th,td';
@@ -637,7 +682,7 @@ enum MarkdownHTMLRenderer {
             }
 
             function normalizeTaskLists(root) {
-              root.querySelectorAll('li input.task-list-checkbox').forEach((input) => {
+              root.querySelectorAll('li input[type=checkbox]').forEach((input) => {
                 input.closest('li')?.classList.add('task-list-item');
               });
             }
@@ -745,14 +790,15 @@ enum MarkdownHTMLRenderer {
             async function render() {
               const root = document.getElementById('content');
               try {
-                root.innerHTML = md.render(prepareTaskLists(markdownSource));
+                root.innerHTML = MarkdownEngine.render(markdownSource);
+                enhanceCode(root);
                 normalizeTaskLists(root);
                 normalizeDirection(root);
 
                 if (window.mermaid) {
                   mermaid.initialize({
                     startOnLoad: false,
-                    securityLevel: 'loose',
+                    securityLevel: 'strict',
                     theme: 'base',
                     themeVariables: {
                       fontFamily: 'Vazirmatn, -apple-system, BlinkMacSystemFont, sans-serif',
@@ -767,7 +813,12 @@ enum MarkdownHTMLRenderer {
                     sequence: { useMaxWidth: false },
                     gantt: { useMaxWidth: false }
                   });
-                  await mermaid.run({ nodes: root.querySelectorAll('.mermaid') });
+                  // One invalid diagram must not hide the rest of the document.
+                  for (const node of root.querySelectorAll('.mermaid')) {
+                    const source = node.textContent;
+                    try { await mermaid.run({nodes: [node], suppressErrors: false}); }
+                    catch (_) { node.textContent = source; node.classList.add('render-error'); }
+                  }
                   normalizeMermaidRTL(root);
                 }
 
@@ -784,7 +835,21 @@ enum MarkdownHTMLRenderer {
               }
             }
 
-            render();
+            document.addEventListener('click', (event) => {
+              const link = event.target.closest('a[href]');
+              const href = link?.getAttribute('href');
+              if (!href) return;
+              if (!href.startsWith('#')) {
+                const handler = window.webkit?.messageHandlers?.openLink;
+                if (handler) { event.preventDefault(); handler.postMessage(link.href); }
+                return;
+              }
+              let id;
+              try { id = decodeURIComponent(href.slice(1)); } catch (_) { return; }
+              const target = document.getElementById(id) || document.getElementById('user-content-' + id);
+              if (target) { event.preventDefault(); target.scrollIntoView(); }
+            });
+            render().finally(() => { window.renderComplete = true; });
           </script>
         </body>
         </html>
@@ -799,7 +864,7 @@ enum MarkdownHTMLRenderer {
         else {
             return "\"\""
         }
-        return String(json.dropFirst().dropLast())
+        return String(json.dropFirst().dropLast()).replacingOccurrences(of: "<", with: "\\u003c")
     }
 
     private static func escapeHTML(_ text: String) -> String {

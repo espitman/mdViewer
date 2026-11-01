@@ -9,6 +9,10 @@ MD Viewer is focused on opening local `.md` files quickly, rendering them in a c
 - Open Markdown files from the file picker.
 - Drag and drop `.md` files into the app.
 - Open and switch between multiple documents with tabs.
+- Files opened from Finder join the existing window as tabs.
+- GitHub-style footnotes, emoji shortcodes, and NOTE/TIP/IMPORTANT/WARNING/CAUTION alerts.
+- Offline inline and display math, including fenced math blocks.
+- Mixed RTL text and inline code without horizontal page overflow.
 - Reload a tab from disk with the toolbar button or `Command-R`.
 - Preview-first interface with optional source/code view.
 - Selectable text in preview.
@@ -24,11 +28,14 @@ MD Viewer is focused on opening local `.md` files quickly, rendering them in a c
   - images
 - Task list rendering for `[ ]` and `[x]`.
 - Mermaid diagram rendering with zoom, pan, and fullscreen view.
-- Markdown rendering powered by bundled `markdown-it`.
+- Markdown rendering powered by bundled `remark` / `remark-gfm`.
 - Syntax highlighting powered by bundled `highlight.js`.
 - Find and replace in the source view.
 - Export rendered content as HTML.
 - DMG packaging script for installing the app on macOS.
+
+See [Markdown compatibility](docs/markdown-compatibility.md) for the tested feature matrix,
+reference test results, rebuild instructions, and known differences from GitHub.
 
 ## Requirements
 
@@ -69,14 +76,14 @@ swift build -c release
 ## Create a DMG
 
 ```bash
-./package-dmg.sh 1.4
+./package-dmg.sh 1.5
 ```
 
 The generated app and installer will be placed in:
 
 ```text
 dist/MD Viewer.app
-dist/MD_Viewer_v1.4.dmg
+dist/MD_Viewer_v1.5.dmg
 ```
 
 To install manually, drag `MD Viewer.app` into `/Applications`, or copy it with:
@@ -90,7 +97,9 @@ ditto "dist/MD Viewer.app" "/Applications/MD Viewer.app"
 
 MD Viewer renders Markdown through a bundled WKWebView stack:
 
-- `markdown-it` for GitHub-style Markdown parsing
+- `remark` / `remark-gfm` for CommonMark and GitHub-style Markdown parsing
+- `rehype-sanitize` for GitHub-style HTML filtering
+- `KaTeX` with native MathML output for offline math
 - `highlight.js` for syntax highlighting
 - `mermaid.js` for diagrams
 - bundled Vazirmatn font and app CSS for Persian/RTL text
@@ -128,7 +137,8 @@ Sources/mdViewer/
     Fonts/Vazirmatn-Regular.ttf
     highlight-github.min.css
     highlight.min.js
-    markdown-it.min.js
+    markdown-engine.min.js
+    markdown-engine-LICENSES.txt
     mermaid.min.js
 ```
 

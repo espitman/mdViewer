@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="MD Viewer"
 EXECUTABLE_NAME="mdViewer"
-VERSION="${1:-1}"
+VERSION="${1:-1.5}"
 APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 DMG_PATH="$ROOT_DIR/dist/MD_Viewer_v$VERSION.dmg"
 VOLUME_NAME="MD Viewer"

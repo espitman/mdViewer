@@ -1,0 +1,22 @@
+name: Verify Markdown rendering
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  rendering:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: Rendering/package-lock.json
+      - run: npm ci --prefix Rendering
+      - run: npm run --prefix Rendering build
+      - run: git diff --exit-code -- Sources/mdViewer/Resources/markdown-engine.min.js Sources/mdViewer/Resources/markdown-engine-LICENSES.txt
+      - run: npm test --prefix Rendering
+      - run: swift test

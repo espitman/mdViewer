@@ -15,7 +15,7 @@ struct MdViewerApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        Window("MD Viewer", id: "main") {
             ContentView(initialFileURL: initialFileURL)
                 .frame(minWidth: 1220, minHeight: 820)
                 .background(AppColor.windowBackground)

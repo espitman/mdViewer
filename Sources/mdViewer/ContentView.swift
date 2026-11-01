@@ -566,6 +566,7 @@ struct ContentView: View {
             MarkdownPreview(
                 documentID: activeDocument?.id,
                 markdown: activeDocument?.markdown ?? "",
+                documentURL: activeDocument?.url,
                 fontName: effectiveFontName,
                 fontSize: fontSize,
                 accentColor: accentColor,
@@ -1065,7 +1066,8 @@ struct ContentView: View {
                 title: activeDocument.fileName,
                 fontName: effectiveFontName,
                 fontSize: fontSize,
-                accent: NSColor(accentColor).hexString
+                accent: NSColor(accentColor).hexString,
+                baseURL: activeDocument.url?.deletingLastPathComponent()
             )
                 .write(to: url, atomically: true, encoding: .utf8)
             exportMessage = "Exported \(url.lastPathComponent)"

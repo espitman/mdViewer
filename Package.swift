@@ -16,6 +16,7 @@ let package = Package(
             resources: [
                 .process("Resources")
             ]
-        )
+        ),
+        .testTarget(name: "mdViewerTests", dependencies: ["mdViewer"])
     ]
 )
