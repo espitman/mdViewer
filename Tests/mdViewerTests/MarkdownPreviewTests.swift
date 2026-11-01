@@ -78,9 +78,9 @@ final class MarkdownPreviewTests: XCTestCase {
         let coordinator = MarkdownPreview.Coordinator(onLoadingChange: { _ in }, onScrollChange: { _ in }, onFileDrop: { openedURLs = $0 })
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(coordinator, name: "openLink")
-        let web = WKWebView(frame: NSRect(x: 0, y: 0, width: 1000, height: 1600), configuration: configuration)
+        let web = DroppableMarkdownWebView(frame: NSRect(x: 0, y: 0, width: 1000, height: 1600), configuration: configuration)
         web.navigationDelegate = coordinator
-        web.loadHTMLString(html, baseURL: directory)
+        web.loadPreviewHTML(html, baseURL: directory)
         var ready = false
         for _ in 0..<300 {
             if (try? await web.evaluateJavaScript("window.renderComplete === true")) as? Bool == true {
@@ -125,7 +125,7 @@ final class MarkdownPreviewTests: XCTestCase {
         })()
         """
         let result = try await web.evaluateJavaScript(checks) as! [String: Bool]
-        for (feature, passed) in result { XCTAssertTrue(passed, feature == "localImage" ? "localImage: \(imageState)" : feature) }
+        for (feature, passed) in result { XCTAssertTrue(passed, feature == "localImage" ? "localImage: \(String(describing: imageState))" : feature) }
         _ = try await web.evaluateJavaScript("document.querySelector('a[href=\"other.md\"]').click()")
         for _ in 0..<30 {
             if !openedURLs.isEmpty { break }
@@ -179,8 +179,8 @@ final class MarkdownPreviewTests: XCTestCase {
 
         [^note]: پانویس فارسی
         """
-        let web = WKWebView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
-        web.loadHTMLString(MarkdownHTMLRenderer.html(for: markdown, title: "Wide document"), baseURL: nil)
+        let web = DroppableMarkdownWebView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        web.loadPreviewHTML(MarkdownHTMLRenderer.html(for: markdown, title: "Wide document"), baseURL: nil)
         var ready = false
         for _ in 0..<300 {
             if (try? await web.evaluateJavaScript("window.renderComplete === true")) as? Bool == true {

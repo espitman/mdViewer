@@ -17,7 +17,7 @@ complete equivalence with every GitHub.com feature or every Markdown dialect.
 | Syntax highlighting | Supported for languages in the existing bundled highlight.js; others stay readable as plain code |
 | Pipe tables, escaped pipes, column alignment, empty cells | Supported |
 | Links, reference links, autolinks, email links, image references | Supported, with boundary differences listed below |
-| Relative local images and links | Resolve against the source document's folder |
+| Relative local images and links | Resolve against the source document's folder; native file-resource handler for WebKit compatibility |
 | Local Markdown links | Open through the app's existing document/tab loader |
 | External links | Open in the system application/browser |
 | Heading anchors, duplicate headings, Unicode headings | Supported using GitHub-style slugs |
@@ -150,3 +150,9 @@ packages. `Rendering/build.mjs` builds the bundled JavaScript and third-party
 license notices. CI checks the tests and verifies that the checked-in bundle
 matches the source. Commit both source and generated resources when changing
 rendering. No release or installed application is updated by these commands.
+
+Local preview images are served through the app's `mdviewer-local` URL scheme.
+This avoids file-URL restrictions in older supported WebKit versions. Native
+navigation converts these URLs back to file URLs before opening document tabs.
+The custom scheme is limited to the preview; exported HTML keeps its original
+file base URL.

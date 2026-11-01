@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import SwiftUI
 import WebKit
+import UniformTypeIdentifiers
 
 struct MarkdownPreview: NSViewRepresentable {
     let documentID: UUID?
@@ -32,7 +33,7 @@ struct MarkdownPreview: NSViewRepresentable {
         webView.setValue(false, forKey: "drawsBackground")
         webView.allowsMagnification = true
         context.coordinator.setLoading(true)
-        webView.loadHTMLString(html, baseURL: documentURL?.deletingLastPathComponent() ?? Bundle.module.resourceURL)
+        webView.loadPreviewHTML(html, baseURL: documentURL?.deletingLastPathComponent() ?? Bundle.module.resourceURL)
         return webView
     }
 
@@ -45,7 +46,7 @@ struct MarkdownPreview: NSViewRepresentable {
         guard webView.renderFingerprint != renderFingerprint else { return }
         webView.renderFingerprint = renderFingerprint
         context.coordinator.setLoading(true)
-        webView.loadHTMLString(html, baseURL: documentURL?.deletingLastPathComponent() ?? Bundle.module.resourceURL)
+        webView.loadPreviewHTML(html, baseURL: documentURL?.deletingLastPathComponent() ?? Bundle.module.resourceURL)
     }
 
     private var html: String {
@@ -97,7 +98,8 @@ struct MarkdownPreview: NSViewRepresentable {
             openLink(url)
         }
 
-        private func openLink(_ url: URL) {
+        private func openLink(_ requestedURL: URL) {
+            let url = PreviewLocalResources.fileURL(for: requestedURL) ?? requestedURL
             if url.isFileURL, ["md", "markdown", "mdown", "mkd"].contains(url.pathExtension.lowercased()) {
                 onFileDrop([url])
             } else if url.isFileURL || ["http", "https", "mailto", "xmpp"].contains(url.scheme?.lowercased() ?? "") {
@@ -136,8 +138,22 @@ struct MarkdownPreview: NSViewRepresentable {
 final class DroppableMarkdownWebView: WKWebView {
     var renderFingerprint: String?
     var onFileDrop: ([URL]) -> Void = { _ in }
+    // A custom scheme lets WebKit read relative image assets on macOS versions
+    // that block file:// subresources of pages created with loadHTMLString.
+    // HTML export continues to use the document's original file:// base URL.
+    func loadPreviewHTML(_ html: String, baseURL: URL?) {
+        guard let baseURL, baseURL.isFileURL,
+              var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            loadHTMLString(html, baseURL: baseURL)
+            return
+        }
+        components.scheme = PreviewLocalResources.scheme
+        let rebasedHTML = html.replacingOccurrences(of: "<base href=\"file:", with: "<base href=\"\(PreviewLocalResources.scheme):")
+        loadHTMLString(rebasedHTML, baseURL: components.url)
+    }
 
     override init(frame frameRect: NSRect, configuration: WKWebViewConfiguration) {
+        configuration.setURLSchemeHandler(PreviewLocalResources(), forURLScheme: PreviewLocalResources.scheme)
         super.init(frame: frameRect, configuration: configuration)
         registerForDraggedTypes([.fileURL, .URL, .string])
     }
@@ -191,6 +207,36 @@ final class DroppableMarkdownWebView: WKWebView {
         }
 
         return []
+    }
+}
+
+final class PreviewLocalResources: NSObject, WKURLSchemeHandler {
+    static let scheme = "mdviewer-local"
+
+    static func fileURL(for url: URL) -> URL? {
+        guard url.scheme == scheme, url.host == nil || url.host == "" else { return nil }
+        return URL(fileURLWithPath: url.path).standardizedFileURL
+    }
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        guard let requestURL = urlSchemeTask.request.url, let fileURL = Self.fileURL(for: requestURL) else {
+            urlSchemeTask.didFailWithError(URLError(.unsupportedURL))
+            return
+        }
+        do {
+            let data = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+            let mime = UTType(filenameExtension: fileURL.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+            let response = URLResponse(url: requestURL, mimeType: mime, expectedContentLength: data.count, textEncodingName: nil)
+            urlSchemeTask.didReceive(response)
+            urlSchemeTask.didReceive(data)
+            urlSchemeTask.didFinish()
+        } catch {
+            urlSchemeTask.didFailWithError(error)
+        }
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        // File reads above complete synchronously; no pending request to cancel.
     }
 }
 
