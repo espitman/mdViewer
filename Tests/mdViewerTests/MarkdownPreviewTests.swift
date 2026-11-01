@@ -91,6 +91,13 @@ final class MarkdownPreviewTests: XCTestCase {
         }
         XCTAssertTrue(ready, "Preview completed without JavaScript initialization errors")
         guard ready else { return }
+        // Rendering the Markdown/diagrams does not imply that WebKit's separate
+        // networking process has finished loading dynamically inserted images.
+        for _ in 0..<100 {
+            if (try? await web.evaluateJavaScript("document.querySelector('img[alt=local]')?.complete === true")) as? Bool == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let imageState = try await web.evaluateJavaScript("JSON.stringify([...document.querySelectorAll('img')].map(i => ({src:i.currentSrc, complete:i.complete, width:i.naturalWidth})))")
         let checks = """
         (() => {
           const root = document.getElementById('content');
@@ -118,7 +125,7 @@ final class MarkdownPreviewTests: XCTestCase {
         })()
         """
         let result = try await web.evaluateJavaScript(checks) as! [String: Bool]
-        for (feature, passed) in result { XCTAssertTrue(passed, feature) }
+        for (feature, passed) in result { XCTAssertTrue(passed, feature == "localImage" ? "localImage: \(imageState)" : feature) }
         _ = try await web.evaluateJavaScript("document.querySelector('a[href=\"other.md\"]').click()")
         for _ in 0..<30 {
             if !openedURLs.isEmpty { break }
